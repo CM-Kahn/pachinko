@@ -19,16 +19,17 @@ The things that make a great pachinko game, and that this one must get right:
 
 1. **Physics that feel real.** Small, heavy steel balls that clatter through dense pin fields,
    roll along pin "rails", get caught by tulips, and rattle into pockets. Many balls on screen at once.
-2. **Exquisite sound.** The single most important "feel" ingredient. Layered ball-on-pin ticks
+   However, fun takes precedence over real.
+3. **Exquisite sound.** The single most important "feel" ingredient. Layered ball-on-pin ticks
    (varying pitch/volume by speed), launch thunk, pocket chimes, tulip snaps, payout cascade,
    jackpot fanfare, and a soft mechanical ambience. Sound must work reliably on iPhone
    (iOS requires audio to be unlocked by a first tap — handle this explicitly).
-3. **A satisfying launcher.** A big chrome lever/dial in the lower right. Drag to set power;
+4. **A satisfying launcher.** A big chrome lever/dial in the lower right. Drag to set power;
    hold to auto-fire a steady stream, like a real machine. Power is consistent so players can
    learn a "sweet spot".
-4. **A machine cabinet, not a web page.** Wood-grain and chrome control panel, red eight-segment
+5. **A machine cabinet, not a web page.** Wood-grain and chrome control panel, red eight-segment
    LED counters, a framed playfield.
-5. **Clear scoring.**
+6. **Clear scoring.**
    - **Balls Remaining** — balls the player has to shoot.
    - **Balls Awarded** — total balls won this session.
    - **High Score** — best result, saved on the device.
