@@ -5,7 +5,6 @@ import type { HitKind } from '../physics/sim';
  * The full sound set arrives in Phase 4; this is enough to tune the physics by ear.
  */
 
-const MUTE_KEY = 'pachinko.muted';
 /** Dense clatter stays pleasant if ticks can't pile up closer together than this. */
 const MIN_TICK_GAP = 0.014;
 /** Impacts slower than this (board units/s) are silent. */
@@ -46,25 +45,12 @@ export class Sound {
   private lastTick = 0;
   private _muted = false;
 
-  constructor() {
-    try {
-      this._muted = localStorage.getItem(MUTE_KEY) === '1';
-    } catch {
-      // Private browsing can block storage; sound just starts on.
-    }
-  }
-
   get muted(): boolean {
     return this._muted;
   }
 
   set muted(value: boolean) {
     this._muted = value;
-    try {
-      localStorage.setItem(MUTE_KEY, value ? '1' : '0');
-    } catch {
-      // Not saved; fine.
-    }
     if (this.out && this.ctx) this.out.gain.setTargetAtTime(value ? 0 : 1, this.ctx.currentTime, 0.02);
   }
 

@@ -5,6 +5,10 @@ const PORT = 4173;
 export default defineConfig({
   testDir: 'e2e',
   fullyParallel: true,
+  // The test browser draws with software rendering, which is slow on big screens and on
+  // the small machines GitHub provides, so be patient and don't run tests side by side there.
+  timeout: 180_000,
+  workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {
     baseURL: `http://localhost:${PORT}/`,

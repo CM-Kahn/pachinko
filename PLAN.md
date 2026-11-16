@@ -32,7 +32,8 @@ The things that make a great pachinko game, and that this one must get right:
    counters (seven bars plus a decimal point per digit), a framed playfield.
 5. **Clear scoring.**
    - **Balls Remaining** — balls the player has to shoot.
-   - **Balls Awarded** — total balls won this session.
+   - **Balls Awarded** — total balls won on this device. It is saved and carries over between
+     visits rather than resetting each time.
    - No high score: the owner decided the game is better without one.
 
 ## 2. Retro theme (original)
@@ -62,7 +63,10 @@ avoid any surf/beach/starfish motif (that belongs to the inspiring app).
 - **Out hole:** balls that miss everything drain at the bottom.
 - **Starting balls / refill:** player starts with a stack of balls; if they run out, a free
   "refill" button resets (it's just for fun).
-- Payout numbers are tuned to feel generous and lively, not punishing. Include a slider behind a settings button that makes payouts easier or harder than the default.
+- Payout numbers are tuned to feel generous and lively, not punishing.
+- **Settings button** on the control panel opens a small panel on top of the machine with the
+  sound on/off switch and a **luck slider**: default in the middle, slide one way to make balls
+  more likely to go into a hole and the other way to make it less likely. Saved on the device.
 
 ## 4. Technology
 
@@ -99,7 +103,9 @@ and gives feedback before the next phase starts.
   Balls Remaining. Balls that roll back down the launch lane are returned to the player.
 - Tuned ball/pin physics (restitution, friction, ball mass, fixed timestep, CCD).
 - First-pass sound so the physics can be tuned by ear: rough pin ticks, launch thunk, and the
-  iOS audio unlock, with a sound on/off button.
+  iOS audio unlock.
+- Settings button and panel (sound switch, luck slider), saved on the device. The luck slider
+  starts to matter in Phase 3, when there are holes to aim for.
 - Until payouts exist, an empty machine refills itself automatically.
 - **Done when:** a stream of balls launches, rattles through pins convincingly, and drains,
   at 60 fps with 50+ balls on screen.
@@ -107,7 +113,8 @@ and gives feedback before the next phase starts.
 ### Phase 3 — Game features
 - Pockets, tulips (open/close), start pocket, three-reel center display, reach, jackpot mode with
   the attacker, bonus light strip.
-- Balls Awarded, saved progress (localStorage), free refill.
+- Balls Awarded (already saved between visits), free refill.
+- The luck slider changes how likely a ball is to find a pocket.
 - **Done when:** a full game loop works and jackpots happen at a fun rate.
 
 ### Phase 4 — Sound

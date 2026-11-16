@@ -1,11 +1,13 @@
 import { Container, FillGradient, Graphics, Rectangle, Text } from 'pixi.js';
 import { DESIGN_H, DESIGN_W } from '../layout';
 import type { LauncherLogic } from '../launcher';
+import type { Settings } from '../settings';
 import type { GameState } from '../state';
 import { COLORS, FONT_STACK } from '../theme';
 import { chrome, seeded } from './draw';
 import { LauncherView } from './launcherView';
 import { LedCounter } from './ledCounter';
+import { SettingsPanel } from './settingsPanel';
 
 /** Where things sit in the 900 x 1600 design space. */
 export const PLAYFIELD = { cx: 450, cy: 624, radius: 400 } as const;
@@ -87,46 +89,28 @@ function buildHeader(): Container {
   return c;
 }
 
-/** A chunky two-state push button for the control panel. */
-class ToggleButton extends Container {
-  private readonly face = new Graphics();
-  private readonly caption: Text;
-  private active = true;
-
-  constructor(
-    private readonly labels: { on: string; off: string },
-    private readonly onChange: (on: boolean) => void,
-  ) {
+/** A chunky chrome-rimmed push button for the control panel. */
+class PushButton extends Container {
+  constructor(text: string, onPress: () => void) {
     super();
-    this.caption = new Text({
-      text: '',
-      style: { fontFamily: FONT_STACK, fontSize: 24, fontWeight: '700', fill: COLORS.ink, letterSpacing: 4 },
-    });
-    this.caption.anchor.set(0.5);
-    this.caption.position.set(134, 31);
-    this.addChild(this.face, this.caption);
-    this.eventMode = 'static';
-    this.cursor = 'pointer';
-    this.hitArea = new Rectangle(-10, -10, 260, 82);
-    this.on('pointertap', () => {
-      this.set(!this.active);
-      this.onChange(this.active);
-    });
-    this.set(true);
-  }
-
-  set(on: boolean): void {
-    this.active = on;
-    this.caption.text = on ? this.labels.on : this.labels.off;
-    this.face
-      .clear()
+    const face = new Graphics()
       .roundRect(0, 4, 240, 62, 31)
       .fill({ color: 0x000000, alpha: 0.35 })
       .roundRect(0, 0, 240, 62, 31)
       .fill(chrome())
       .roundRect(5, 5, 230, 52, 26)
-      .fill(on ? COLORS.cream : 0xb9ae93);
-    this.face.circle(34, 31, 9).fill(on ? COLORS.ledOn : 0x4a1410);
+      .fill(COLORS.cream);
+    const caption = new Text({
+      text,
+      style: { fontFamily: FONT_STACK, fontSize: 24, fontWeight: '700', fill: COLORS.ink, letterSpacing: 5 },
+    });
+    caption.anchor.set(0.5);
+    caption.position.set(122, 31);
+    this.addChild(face, caption);
+    this.eventMode = 'static';
+    this.cursor = 'pointer';
+    this.hitArea = new Rectangle(-10, -10, 260, 82);
+    this.on('pointertap', onPress);
   }
 }
 
@@ -137,9 +121,10 @@ export class Cabinet extends Container {
   /** Holds the board; its origin is the centre of the round playfield. */
   readonly boardLayer = new Container();
   readonly launcher: LauncherView;
-  readonly soundButton: ToggleButton;
+  readonly settingsButton: PushButton;
+  readonly settingsPanel: SettingsPanel;
 
-  constructor(logic: LauncherLogic, onSoundToggle: (on: boolean) => void) {
+  constructor(logic: LauncherLogic, settings: Settings, onSettingsChange: (settings: Settings) => void) {
     super();
 
     // Cabinet body.
@@ -189,9 +174,10 @@ export class Cabinet extends Container {
     this.ballsAwarded.position.set(p.x + 44, p.y + 190);
     this.addChild(this.ballsRemaining, this.ballsAwarded);
 
-    this.soundButton = new ToggleButton({ on: 'SOUND ON', off: 'SOUND OFF' }, onSoundToggle);
-    this.soundButton.position.set(p.x + 44, p.y + 380);
-    this.addChild(this.soundButton);
+    this.settingsPanel = new SettingsPanel(settings, onSettingsChange, () => undefined);
+    this.settingsButton = new PushButton('SETTINGS', () => this.settingsPanel.open());
+    this.settingsButton.position.set(p.x + 44, p.y + 380);
+    this.addChild(this.settingsButton);
 
     // The whole right-hand side of the panel grabs the handle, so thumbs can't miss.
     this.launcher = new LauncherView(logic, new Rectangle(440 - LAUNCHER.x, p.y - LAUNCHER.y, p.x + p.w - 440, p.h));
@@ -206,6 +192,9 @@ export class Cabinet extends Container {
       [DESIGN_W - inset, DESIGN_H - inset],
     ];
     corners.forEach(([x, y], i) => this.addChild(screw(x, y, 0.5 + i * 1.1)));
+
+    // Last, so it opens on top of everything.
+    this.addChild(this.settingsPanel);
   }
 
   /** Push the latest numbers to the LED counters. */

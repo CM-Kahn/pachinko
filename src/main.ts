@@ -7,11 +7,13 @@ import { LauncherLogic } from './launcher';
 import { fitCabinet } from './layout';
 import type { Simulation } from './physics/sim';
 import { FIXED_DT, FixedStepper } from './physics/world';
-import { STARTING_BALLS, newGameState } from './state';
+import { loadSettings, saveSettings, type Settings } from './settings';
+import { STARTING_BALLS, newGameState, saveProgress } from './state';
 import { COLORS } from './theme';
 import { BoardView } from './ui/boardView';
 import { Cabinet } from './ui/cabinet';
 import { FULL_PULL_DRAG } from './ui/launcherView';
+import { DONE_BUTTON, LUCK_TRACK, SOUND_SWITCH } from './ui/settingsPanel';
 
 /** Sharp on Retina screens without paying for more pixels than anyone can see. */
 const MAX_PIXEL_RATIO = 3;
@@ -28,6 +30,16 @@ interface DebugInfo {
   handle: { x: number; y: number };
   /** CSS pixels of drag for a full pull. */
   fullPull: number;
+  settings: Settings;
+  settingsOpen: boolean;
+  /** Where the settings controls are, in CSS pixels. */
+  ui: {
+    settingsButton: { x: number; y: number };
+    soundSwitch: { x: number; y: number };
+    luckLeft: { x: number; y: number };
+    luckRight: { x: number; y: number };
+    done: { x: number; y: number };
+  };
 }
 declare global {
   interface Window {
@@ -59,11 +71,13 @@ async function start(): Promise<void> {
   const logic = new LauncherLogic();
   const board = loadBoard(classic as BoardSpec);
 
-  const cabinet = new Cabinet(logic, (on) => {
-    sound.muted = !on;
+  const settings = loadSettings();
+  sound.muted = !settings.soundOn;
+  const cabinet = new Cabinet(logic, settings, (changed) => {
+    sound.muted = !changed.soundOn;
     sound.unlock();
+    saveSettings(changed);
   });
-  cabinet.soundButton.set(!sound.muted);
   const boardView = new BoardView(board, app.renderer);
   cabinet.boardLayer.addChild(boardView);
   app.stage.addChild(cabinet);
@@ -87,6 +101,7 @@ async function start(): Promise<void> {
   const stress = Number(new URLSearchParams(location.search).get('stress')) || 0;
   const stepper = new FixedStepper();
   let pendingShot: number | null = null;
+  let savedAwarded = state.ballsAwarded;
   let emptyFor = 0;
   let fps = 60;
   let physicsMs = 0;
@@ -135,6 +150,11 @@ async function start(): Promise<void> {
       emptyFor = 0;
     }
 
+    if (state.ballsAwarded !== savedAwarded) {
+      savedAwarded = state.ballsAwarded;
+      saveProgress(state);
+    }
+
     cabinet.launcher.update(dt);
     boardView.sync(sim.balls);
     cabinet.show(state);
@@ -148,7 +168,21 @@ async function start(): Promise<void> {
     const area = cabinet.launcher.grabArea;
     const centre = cabinet.launcher.toGlobal({ x: area.x + area.width / 2, y: area.y + area.height * 0.3 });
     const box = app.canvas.getBoundingClientRect();
+    const at = (x: number, y: number): { x: number; y: number } => {
+      const g = cabinet.toGlobal({ x, y });
+      return { x: box.left + g.x, y: box.top + g.y };
+    };
+    const button = cabinet.settingsButton.position;
     return {
+      settings: { ...settings },
+      settingsOpen: cabinet.settingsPanel.isOpen,
+      ui: {
+        settingsButton: at(button.x + 120, button.y + 31),
+        soundSwitch: at(SOUND_SWITCH.x + SOUND_SWITCH.w / 2, SOUND_SWITCH.y + SOUND_SWITCH.h / 2),
+        luckLeft: at(LUCK_TRACK.x0, LUCK_TRACK.y),
+        luckRight: at(LUCK_TRACK.x1, LUCK_TRACK.y),
+        done: at(DONE_BUTTON.x + DONE_BUTTON.w / 2, DONE_BUTTON.y + DONE_BUTTON.h / 2),
+      },
       ballsOnBoard: sim.balls.length,
       ballsRemaining: state.ballsRemaining,
       fps,
