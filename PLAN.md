@@ -9,6 +9,8 @@ This is an **original game**. It is inspired by the *feel* of classic pachinko m
 old favorite iPhone pachinko app, but it must not copy that app's art, sounds, board layout,
 characters, names, or theme. All art and sound are made fresh for this project.
 
+
+
 ---
 
 ## 1. What we're aiming for
@@ -24,8 +26,8 @@ The things that make a great pachinko game, and that this one must get right:
 3. **A satisfying launcher.** A big chrome lever/dial in the lower right. Drag to set power;
    hold to auto-fire a steady stream, like a real machine. Power is consistent so players can
    learn a "sweet spot".
-4. **A machine cabinet, not a web page.** Wood-grain and chrome control panel, red seven-segment
-   LED counters, a framed playfield behind glass.
+4. **A machine cabinet, not a web page.** Wood-grain and chrome control panel, red eight-segment
+   LED counters, a framed playfield.
 5. **Clear scoring.**
    - **Balls Remaining** — balls the player has to shoot.
    - **Balls Awarded** — total balls won this session.
@@ -46,7 +48,7 @@ to the inspiring app).
   reels** (three digital reels in the retro style).
 - **Tulips:** flower-shaped catchers that pay a few balls; some open wider after a catch,
   then close.
-- **Side pockets:** small, steady payouts.
+- **Side pockets:** small, steady payouts by default.
 - **Reach & jackpot:** when two reels match, a "reach" animation builds tension; three of a kind
   = **jackpot mode**: the **attacker** (large gate near the bottom) opens for several rounds and
   pays big.
@@ -55,7 +57,7 @@ to the inspiring app).
 - **Out hole:** balls that miss everything drain at the bottom.
 - **Starting balls / refill:** player starts with a stack of balls; if they run out, a free
   "refill" button resets (it's just for fun).
-- Payout numbers are tuned to feel generous and lively, not punishing.
+- Payout numbers are tuned to feel generous and lively, not punishing. Include a slider behind a settings button that makes payouts easier or harder than the default.
 
 ## 4. Technology
 
