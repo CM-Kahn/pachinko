@@ -67,6 +67,10 @@ avoid any surf/beach/starfish motif (that belongs to the inspiring app).
 - **Settings button** on the control panel opens a small panel on top of the machine with the
   sound on/off switch and a **luck slider**: default in the middle, slide one way to make balls
   more likely to go into a hole and the other way to make it less likely. Saved on the device.
+- **Payout** (also in Settings): the player chooses **5, 10 or 25 balls** for every ball that
+  lands in a pocket. Every pocket pays the same, and the choice never changes how hard the
+  pockets are to hit. At 5 the machine roughly breaks even over a long session; 10 and 25 are
+  generous. A full bonus strip pays twice the chosen amount.
 
 ## 4. Technology
 
@@ -110,11 +114,16 @@ and gives feedback before the next phase starts.
 - **Done when:** balls launch one per pull, rattle through pins convincingly, and drain, and
   the board still runs at 60 fps with 50+ balls on it (as jackpot payouts will need later).
 
-### Phase 3 — Game features
-- Pockets, tulips (open/close), start pocket, three-reel center display, reach, jackpot mode with
-  the attacker, bonus light strip.
-- Balls Awarded (already saved between visits), free refill.
-- The luck slider changes how likely a ball is to find a pocket.
+### Phase 3 — Game features (built)
+- Start pocket under the display, four tulips (upper ones open their lower partner), two side
+  pockets, and the attacker gate, all placed in the board JSON.
+- Three-reel centre display: a start catch spins the reels (up to four spins wait their turn);
+  two alike is a reach; three alike is a jackpot of five rounds (eight for three sevens) in
+  which the attacker opens.
+- Bonus light strip: each tulip catch lights a bulb; nine pays a bonus.
+- Winnings trickle into the tray and onto Balls Awarded. Out of balls: a free refill card.
+- The luck slider leans balls towards or away from the pockets. Payout choice in Settings.
+- First-pass sounds for wins, reels, reach and jackpot (the real set is Phase 4).
 - **Done when:** a full game loop works and jackpots happen at a fun rate.
 
 ### Phase 4 — Sound

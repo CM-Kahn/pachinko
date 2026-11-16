@@ -1,14 +1,16 @@
 import { Container, Graphics, Rectangle, Text, type FederatedPointerEvent } from 'pixi.js';
 import { DESIGN_H, DESIGN_W } from '../layout';
-import { snapLuck, type Settings } from '../settings';
+import { PAYOUTS, snapLuck, type Settings } from '../settings';
 import { COLORS, FONT_STACK } from '../theme';
 import { chrome } from './draw';
 
-const CARD = { x: 90, y: 330, w: 720, h: 600 } as const;
+const CARD = { x: 90, y: 260, w: 720, h: 740 } as const;
 /** The luck slider's track, in cabinet design units. */
 export const LUCK_TRACK = { x0: CARD.x + 100, x1: CARD.x + CARD.w - 100, y: CARD.y + 370 } as const;
 export const SOUND_SWITCH = { x: CARD.x + CARD.w - 250, y: CARD.y + 128, w: 170, h: 72 } as const;
-export const DONE_BUTTON = { x: CARD.x + CARD.w / 2 - 130, y: CARD.y + 486, w: 260, h: 72 } as const;
+export const DONE_BUTTON = { x: CARD.x + CARD.w / 2 - 130, y: CARD.y + 626, w: 260, h: 72 } as const;
+/** One button per payout choice, left to right. */
+export const PAYOUT_BUTTONS = PAYOUTS.map((value, i) => ({ value, x: CARD.x + 300 + i * 120, y: CARD.y + 506, w: 104, h: 72 }));
 
 function label(text: string, size: number, color: number = COLORS.ink, spacing = 4): Text {
   return new Text({ text, style: { fontFamily: FONT_STACK, fontSize: size, fontWeight: '700', fill: color, letterSpacing: spacing } });
@@ -20,6 +22,8 @@ export class SettingsPanel extends Container {
   private readonly switchText = label('', 26);
   private readonly knob = new Graphics();
   private readonly fill = new Graphics();
+  private readonly payoutFaces = new Graphics();
+  private readonly payoutTexts: Text[] = [];
   private dragging: number | null = null;
 
   constructor(
@@ -118,6 +122,29 @@ export class SettingsPanel extends Container {
       this.addChild(t);
     }
 
+    // Payout: how many balls each caught ball pays.
+    const payout = label('PAYOUT', 32);
+    payout.anchor.set(0, 0.5);
+    payout.position.set(CARD.x + 80, PAYOUT_BUTTONS[0]!.y + 36);
+    const perBall = label('BALLS FOR EVERY BALL IN A POCKET', 20, 0x5c5244, 2);
+    perBall.anchor.set(1, 0);
+    perBall.position.set(CARD.x + CARD.w - 76, PAYOUT_BUTTONS[0]!.y + 82);
+    this.addChild(payout, perBall, this.payoutFaces);
+    for (const b of PAYOUT_BUTTONS) {
+      const hit = new Graphics().rect(b.x - 8, b.y - 8, b.w + 16, b.h + 16).fill({ color: 0xffffff, alpha: 0 });
+      hit.eventMode = 'static';
+      hit.cursor = 'pointer';
+      hit.on('pointertap', () => {
+        this.settings.payout = b.value;
+        this.changed();
+      });
+      const t = label(String(b.value), 32, COLORS.ink, 2);
+      t.anchor.set(0.5);
+      t.position.set(b.x + b.w / 2, b.y + b.h / 2);
+      this.payoutTexts.push(t);
+      this.addChild(hit, t);
+    }
+
     // Done.
     const b = DONE_BUTTON;
     const done = new Graphics()
@@ -184,6 +211,17 @@ export class SettingsPanel extends Container {
     this.switchText.text = on ? 'ON' : 'OFF';
     this.switchText.style.fill = COLORS.cream;
     this.switchText.position.set(on ? s.x + (s.w - s.h) / 2 + 12 : s.x + s.h + (s.w - s.h) / 2 - 12, s.y + s.h / 2);
+
+    this.payoutFaces.clear();
+    PAYOUT_BUTTONS.forEach((b, i) => {
+      const chosen = b.value === this.settings.payout;
+      this.payoutFaces
+        .roundRect(b.x - 4, b.y - 4, b.w + 8, b.h + 8, b.h / 2 + 4)
+        .fill(chrome())
+        .roundRect(b.x, b.y, b.w, b.h, b.h / 2)
+        .fill(chosen ? COLORS.teal : COLORS.cream);
+      this.payoutTexts[i]!.style.fill = chosen ? COLORS.cream : COLORS.ink;
+    });
 
     const { x0, x1, y } = LUCK_TRACK;
     const mid = (x0 + x1) / 2;

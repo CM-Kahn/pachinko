@@ -24,7 +24,7 @@ function shoot(power: number, random: () => number = () => 0.5): { ball: Ball; s
   let steps = 0;
   const path: number[] = [];
   while (!drained && steps < 120 * 60) {
-    sim.step({ onDrain: () => (drained = true) });
+    sim.step({ onDrain: () => (drained = true), onCatch: () => (drained = true) });
     path.push(ball.x, ball.y);
     steps++;
   }
@@ -71,6 +71,7 @@ describe('Simulation', () => {
     let drained = 0;
     let hits = 0;
     let longest = 0;
+    let caught = 0;
     let peak = 0;
     let step = 0;
     while ((launched < 400 || sim.balls.length > 0) && step < 120 * 600) {
@@ -87,6 +88,10 @@ describe('Simulation', () => {
           drained++;
           longest = Math.max(longest, (step - born.get(b.id)!) * FIXED_DT);
         },
+        onCatch: () => {
+          drained++;
+          caught++;
+        },
       });
       for (const b of sim.balls) expect(Math.hypot(b.x, b.y)).toBeLessThan(board.radius);
       peak = Math.max(peak, sim.balls.length);
@@ -98,6 +103,47 @@ describe('Simulation', () => {
     // A ball should rattle off plenty of pins on the way down.
     expect(hits / launched).toBeGreaterThan(10);
     expect(peak).toBeGreaterThan(8);
+    // Some balls find a pocket, but most must not: the pockets are meant to be hard to hit.
+    expect(caught).toBeGreaterThan(10);
+    expect(caught).toBeLessThan(140);
+  });
+
+  it('catches a ball dropped into a tulip, a cup, and the attacker only while it is open', () => {
+    const dropInto = (id: string, prepare?: (sim: Simulation) => void): string | null => {
+      const sim = new Simulation(R, board, () => 0.5);
+      prepare?.(sim);
+      const p = board.pockets.find((q) => q.id === id)!;
+      sim.spawn(p.x, p.y - 30, 0, 100);
+      let caught: string | null = null;
+      for (let i = 0; i < 120 * 3 && caught === null && sim.balls.length > 0; i++) {
+        sim.step({ onCatch: (pocket) => (caught = pocket.id) });
+      }
+      return caught;
+    };
+    expect(dropInto('tulip-lower-left')).toBe('tulip-lower-left');
+    expect(dropInto('tulip-lower-left', (sim) => sim.setOpen('tulip-lower-left', true))).toBe('tulip-lower-left');
+    expect(dropInto('side-right')).toBe('side-right');
+    expect(dropInto('start')).toBe('start');
+    expect(dropInto('attacker')).toBeNull();
+    expect(dropInto('attacker', (sim) => sim.setOpen('attacker', true))).toBe('attacker');
+  });
+
+  it('catches more balls the luckier the machine is set', () => {
+    const catches = (luck: number): number => {
+      const random = seeded(21);
+      const sim = new Simulation(R, board, random);
+      sim.luck = luck;
+      let launched = 0;
+      let caught = 0;
+      for (let step = 0; (launched < 300 || sim.balls.length > 0) && step < 120 * 600; step++) {
+        if (launched < 300 && step % 40 === 0 && sim.launch(0.2 + random() * 0.8)) launched++;
+        sim.step({ onCatch: () => caught++ });
+      }
+      return caught;
+    };
+    const [hard, normal, easy] = [-1, 0, 1].map(catches) as [number, number, number];
+    expect(hard).toBeLessThan(normal);
+    expect(normal).toBeLessThan(easy);
   });
 
   it('simulates 60 balls well inside a 60 fps frame', () => {

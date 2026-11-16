@@ -42,6 +42,8 @@ export class Sound {
   private wall: AudioBuffer | null = null;
   private thunk: AudioBuffer | null = null;
   private drop: AudioBuffer | null = null;
+  private bell: AudioBuffer | null = null;
+  private lastCoin = 0;
   private lastTick = 0;
   private _muted = false;
 
@@ -60,6 +62,14 @@ export class Sound {
    */
   unlock(): void {
     if (!this.ctx) {
+      // On iPhone, ordinary web audio obeys the silent switch. Asking for a "playback"
+      // session (Safari 16.4 and later) makes game sound play regardless, like a native game.
+      try {
+        const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+        if (session) session.type = 'playback';
+      } catch {
+        // Not supported here; sound then follows the silent switch.
+      }
       const Ctor: AudioCtor | undefined =
         window.AudioContext ?? (window as unknown as { webkitAudioContext?: AudioCtor }).webkitAudioContext;
       if (!Ctor) return;
@@ -105,10 +115,11 @@ export class Sound {
       const snap = Math.sin(2 * Math.PI * 2100 * t) * Math.exp(-t / 0.004) * 0.35;
       return (body + snap) * 0.9;
     });
+    this.bell = ping(ctx, [1320, 2640, 3990], 0.09, 0.15);
     this.drop = render(ctx, 0.09, (t) => Math.sin(2 * Math.PI * (240 - 900 * t) * t) * Math.exp(-t / 0.022) * 0.5);
   }
 
-  private play(buffer: AudioBuffer | null | undefined, volume: number, rate: number): void {
+  private play(buffer: AudioBuffer | null | undefined, volume: number, rate: number, delay = 0): void {
     const ctx = this.ctx;
     if (!ctx || !this.out || !buffer || this._muted || ctx.state !== 'running' || volume <= 0.002) return;
     const src = ctx.createBufferSource();
@@ -117,7 +128,7 @@ export class Sound {
     const gain = ctx.createGain();
     gain.gain.value = volume;
     src.connect(gain).connect(this.out);
-    src.start();
+    src.start(ctx.currentTime + delay);
   }
 
   /** A ball hit something at `speed` board units per second. */
@@ -139,6 +150,9 @@ export class Sound {
       case 'ball':
         this.play(this.pins[0], loud * 0.5, rate * 1.25);
         break;
+      case 'cup':
+        this.play(this.wall, loud * 0.5, rate * 1.3);
+        break;
       case 'bumper':
         this.play(this.wall, loud * 0.9, rate * 0.55);
         break;
@@ -155,5 +169,44 @@ export class Sound {
   /** A ball dropped into the out hole. */
   drain(): void {
     this.play(this.drop, 0.3, 0.95 + Math.random() * 0.1);
+  }
+
+  /** A ball was caught and the machine pays. */
+  win(): void {
+    this.play(this.bell, 0.4, 1);
+    this.play(this.bell, 0.3, 1.5, 0.07);
+  }
+
+  /** One won ball dropped into the tray. */
+  coin(): void {
+    const ctx = this.ctx;
+    if (!ctx || ctx.currentTime - this.lastCoin < 0.05) return;
+    this.lastCoin = ctx.currentTime;
+    this.play(this.pins[1], 0.12, 1.5 + Math.random() * 0.2);
+  }
+
+  /** A reel clicked to a stop. */
+  reelStop(): void {
+    this.play(this.thunk, 0.35, 2.2);
+  }
+
+  /** Two reels match: something might be coming. */
+  reach(): void {
+    for (let i = 0; i < 4; i++) this.play(this.bell, 0.3, 1 + i * 0.12, i * 0.14);
+  }
+
+  /** Three of a kind. */
+  jackpot(): void {
+    [1, 1.26, 1.5, 2, 1.5, 2, 2.52].forEach((rate, i) => this.play(this.bell, 0.5, rate, i * 0.11));
+  }
+
+  /** A tulip or the attacker snapped open or shut. */
+  snap(open: boolean): void {
+    this.play(this.wall, 0.3, open ? 1.6 : 1.1);
+  }
+
+  /** The bonus strip filled up, or a jackpot round began. */
+  fanfare(): void {
+    [1, 1.5, 2].forEach((rate, i) => this.play(this.bell, 0.4, rate, i * 0.09));
   }
 }
