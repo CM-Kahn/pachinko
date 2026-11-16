@@ -34,40 +34,50 @@ test('cabinet loads, fills the screen, and reports no errors', async ({ page }, 
   expect(problems).toEqual([]);
 });
 
-test('pulling the handle fires a stream of balls that drain', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'phone', 'software rendering makes big screens too slow to play in a test');
-  test.setTimeout(180_000);
-  const problems = watchForProblems(page);
-  await ready(page);
+async function pullAndRelease(page: Page, amount: number, holdMs = 0): Promise<void> {
   const { handle, fullPull } = await info(page);
-
-  // Pull the handle back to a medium-strong shot and hold it.
   await page.mouse.move(handle.x, handle.y);
   await page.mouse.down();
-  await page.mouse.move(handle.x, handle.y + fullPull * 0.6, { steps: 6 });
-  await expect.poll(async () => (await info(page)).ballsOnBoard, { timeout: 20_000 }).toBeGreaterThan(3);
-  await page.screenshot({ path: testInfo.outputPath('playing.png') });
+  await page.mouse.move(handle.x, handle.y + fullPull * amount, { steps: 3 });
+  if (holdMs > 0) await page.waitForTimeout(holdMs);
   await page.mouse.up();
+}
 
-  const after = await info(page);
-  expect(after.ballsRemaining).toBeLessThan(250);
+test('each pull of the handle shoots one ball, and the balls drain', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'phone', 'software rendering makes big screens too slow to play in a test');
+  const problems = watchForProblems(page);
+  await ready(page);
 
-  // Let go: no more balls fire, and the ones in play all find the out hole.
+  for (let shot = 1; shot <= 5; shot++) {
+    await pullAndRelease(page, 0.45 + shot * 0.08);
+    await expect.poll(async () => (await info(page)).ballsRemaining).toBe(250 - shot);
+  }
+  expect((await info(page)).ballsOnBoard).toBeGreaterThan(0);
+  await page.screenshot({ path: testInfo.outputPath('playing.png') });
+
+  // Every ball finds the out hole, and nothing more is shot meanwhile.
   await expect.poll(async () => (await info(page)).ballsOnBoard, { timeout: 120_000 }).toBe(0);
-  expect((await info(page)).ballsRemaining).toBe(after.ballsRemaining);
+  expect((await info(page)).ballsRemaining).toBe(245);
   expect(problems).toEqual([]);
 });
 
-test('a quick flick fires exactly one ball', async ({ page }, testInfo) => {
+test('holding the handle back does not shoot until it is let go, then shoots just one', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === 'tablet', 'covered on phone and desktop');
   await ready(page);
   const { handle, fullPull } = await info(page);
   await page.mouse.move(handle.x, handle.y);
   await page.mouse.down();
   await page.mouse.move(handle.x, handle.y + fullPull * 0.7);
+  await page.waitForTimeout(2500);
+  expect((await info(page)).ballsRemaining).toBe(250);
   await page.mouse.up();
   await expect.poll(async () => (await info(page)).ballsRemaining).toBe(249);
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(1500);
+  expect((await info(page)).ballsRemaining).toBe(249);
+
+  // A bare tap wastes nothing.
+  await pullAndRelease(page, 0);
+  await page.waitForTimeout(500);
   expect((await info(page)).ballsRemaining).toBe(249);
 });
 
@@ -80,11 +90,12 @@ test('keeps up with 60 balls on the board', async ({ page }, testInfo) => {
   const stats = await info(page);
   await page.screenshot({ path: testInfo.outputPath('stress.png') });
   testInfo.annotations.push({ type: 'stats', description: JSON.stringify(stats) });
-  console.log(`stress: ${stats.ballsOnBoard} balls, ${stats.fps.toFixed(0)} fps (software rendering), physics ${stats.physicsMsPerFrame.toFixed(2)} ms/frame`);
+  console.log(`stress: ${stats.ballsOnBoard} balls, ${stats.fps.toFixed(0)} fps (software rendering), physics ${stats.physicsMsPerStep.toFixed(2)} ms/step`);
   expect(stats.ballsOnBoard).toBeGreaterThanOrEqual(50);
-  // Rendering speed in a headless test browser says little about a real phone, but the
-  // physics cost per frame must stay a small slice of the 16.7 ms budget.
-  expect(stats.physicsMsPerFrame).toBeLessThan(6);
+  // Rendering speed in a headless test browser says little about a real phone, and the
+  // software renderer competes with the physics for the processor. This only guards
+  // against the physics becoming grossly slow: two steps must fit well inside a frame.
+  expect(stats.physicsMsPerStep).toBeLessThan(4);
   expect(problems).toEqual([]);
 });
 

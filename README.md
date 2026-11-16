@@ -17,7 +17,7 @@ Browser smoke tests save a screenshot per screen size under `test-results/`.
 
 - The board layout is data: `src/board/classic.json` (format described in `src/board/types.ts`).
 - The feel of the physics (gravity, bounce, launch variation) is the `TUNING` block in
-  `src/physics/sim.ts`; the firing rhythm is at the top of `src/launcher.ts`.
+  `src/physics/sim.ts`.
 - Add `?stress=60` to the address to keep 60 balls on the board for performance checks.
 
 ## Deploy

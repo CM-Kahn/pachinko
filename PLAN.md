@@ -25,9 +25,9 @@ The things that make a great pachinko game, and that this one must get right:
    jackpot fanfare, and a soft mechanical ambience. Sound must work reliably on iPhone
    (iOS requires audio to be unlocked by a first tap — handle this explicitly).
 3. **A satisfying launcher.** A chrome handle in the lower right that you pull back by touching
-   it (phone/tablet) or dragging it with the mouse (desktop). Pull and let go to flick one ball;
-   keep it held back to fire a steady stream at that power. Power is consistent so players can
-   learn a "sweet spot".
+   it (phone/tablet) or dragging it with the mouse (desktop), then let go to shoot. **One ball
+   per pull, no steady streams** — just like a machine from Japan. How far you pull sets the
+   power, and it is consistent so players can learn a "sweet spot".
 4. **A machine cabinet, not a web page.** Wood-grain and chrome control panel, red LED
    counters (seven bars plus a decimal point per digit), a framed playfield.
 5. **Clear scoring.**
@@ -99,7 +99,7 @@ and gives feedback before the next phase starts.
 
 ### Phase 2 — Physics prototype (built)
 - Board-from-JSON loader; circular guide rail; pins; out hole.
-- Launcher: pull-back handle, flick for one ball or hold for a stream; balls decrement
+- Launcher: pull-back handle, one ball per pull; balls decrement
   Balls Remaining. Balls that roll back down the launch lane are returned to the player.
 - Tuned ball/pin physics (restitution, friction, ball mass, fixed timestep, CCD).
 - First-pass sound so the physics can be tuned by ear: rough pin ticks, launch thunk, and the
@@ -107,8 +107,8 @@ and gives feedback before the next phase starts.
 - Settings button and panel (sound switch, luck slider), saved on the device. The luck slider
   starts to matter in Phase 3, when there are holes to aim for.
 - Until payouts exist, an empty machine refills itself automatically.
-- **Done when:** a stream of balls launches, rattles through pins convincingly, and drains,
-  at 60 fps with 50+ balls on screen.
+- **Done when:** balls launch one per pull, rattle through pins convincingly, and drain, and
+  the board still runs at 60 fps with 50+ balls on it (as jackpot payouts will need later).
 
 ### Phase 3 — Game features
 - Pockets, tulips (open/close), start pocket, three-reel center display, reach, jackpot mode with

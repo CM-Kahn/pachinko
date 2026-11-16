@@ -117,6 +117,7 @@ describe('Simulation', () => {
       sim.step();
     }
     const msPerStep = (performance.now() - t0) / steps;
+    console.log(`60 balls: ${msPerStep.toFixed(3)} ms per physics step`);
     // Two steps per frame must leave nearly all of the 16.7 ms for drawing, even on a phone.
     expect(msPerStep).toBeLessThan(2);
   });

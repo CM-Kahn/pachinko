@@ -11,7 +11,7 @@ const ARM_END = { x: 150, y: -132 };
 
 /**
  * The chrome launch handle. Touch or click anywhere around it and drag down to pull it
- * back; it follows the finger and springs forward when a ball fires.
+ * back; it follows the finger and springs forward on release, shooting one ball.
  */
 export class LauncherView extends Container {
   private readonly arm = new Container();
@@ -20,8 +20,8 @@ export class LauncherView extends Container {
   private shown = 0;
   private kick = 0;
 
-  /** Called when the player lets go of the handle, with the flick power if one fires. */
-  onRelease: (flick: number | null) => void = () => undefined;
+  /** Called when the player lets go of the handle, with the shot's power if one fires. */
+  onRelease: (power: number | null) => void = () => undefined;
   /** Called on any touch, for unlocking sound. */
   onTouch: () => void = () => undefined;
 
@@ -132,6 +132,13 @@ export class LauncherView extends Container {
     this.pointerId = null;
     this.cursor = 'grab';
     this.onRelease(this.logic.release());
+  }
+
+  /** Drop the handle without shooting. */
+  cancel(): void {
+    this.pointerId = null;
+    this.cursor = 'grab';
+    this.logic.cancel();
   }
 
   /** The handle snaps forward as a ball leaves. */

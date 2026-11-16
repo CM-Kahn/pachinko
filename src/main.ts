@@ -6,7 +6,7 @@ import type { BoardSpec } from './board/types';
 import { LauncherLogic } from './launcher';
 import { fitCabinet } from './layout';
 import type { Simulation } from './physics/sim';
-import { FIXED_DT, FixedStepper } from './physics/world';
+import { FixedStepper } from './physics/world';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { STARTING_BALLS, newGameState, saveProgress } from './state';
 import { COLORS } from './theme';
@@ -25,7 +25,8 @@ interface DebugInfo {
   ballsOnBoard: number;
   ballsRemaining: number;
   fps: number;
-  physicsMsPerFrame: number;
+  /** Average cost of one physics step; there are two per frame at 60 fps. */
+  physicsMsPerStep: number;
   /** Centre of the launch handle's grab area, in CSS pixels. */
   handle: { x: number; y: number };
   /** CSS pixels of drag for a full pull. */
@@ -125,8 +126,6 @@ async function start(): Promise<void> {
     const steps = stepper.advance(dt);
     const t0 = performance.now();
     for (let i = 0; i < steps; i++) {
-      const shot = logic.update(FIXED_DT);
-      if (shot !== null) pendingShot = shot;
       if (pendingShot !== null && state.ballsRemaining > 0 && sim.launch(pendingShot)) {
         state.ballsRemaining--;
         sound.launch(pendingShot);
@@ -140,7 +139,7 @@ async function start(): Promise<void> {
       }
       sim.step(events);
     }
-    physicsMs += (performance.now() - t0 - physicsMs) * 0.05;
+    if (steps > 0) physicsMs += ((performance.now() - t0) / steps - physicsMs) * 0.05;
     if (dt > 0) fps += (1 / dt - fps) * 0.05;
 
     if (state.ballsRemaining === 0 && sim.balls.length === 0) {
@@ -161,7 +160,7 @@ async function start(): Promise<void> {
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) cabinet.launcher.onRelease(logic.release());
+    if (document.hidden) cabinet.launcher.cancel();
   });
 
   window.__pachinko = () => {
@@ -186,7 +185,7 @@ async function start(): Promise<void> {
       ballsOnBoard: sim.balls.length,
       ballsRemaining: state.ballsRemaining,
       fps,
-      physicsMsPerFrame: physicsMs,
+      physicsMsPerStep: physicsMs,
       handle: { x: box.left + centre.x, y: box.top + centre.y },
       fullPull: FULL_PULL_DRAG * cabinet.scale.x,
     };
