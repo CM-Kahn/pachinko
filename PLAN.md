@@ -84,7 +84,7 @@ Xcode — the owner has several). Not needed to play on Apple devices.
 Each phase is roughly one build session. After each, the owner plays it at the GitHub Pages link
 and gives feedback before the next phase starts.
 
-### Phase 1 — Foundation
+### Phase 1 — Foundation (built; awaiting first deploy from `main`)
 - Vite + TypeScript + PixiJS + Rapier skeleton; lint, tests, GitHub Actions deploy to Pages.
 - Portrait cabinet layout that scales to any screen (phone, iPad, Mac window, Vision Pro window).
 - **Done when:** the link loads on iPhone and Mac and shows an empty cabinet with LED counters.
