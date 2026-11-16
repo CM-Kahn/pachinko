@@ -1,0 +1,39 @@
+{
+  "name": "Classic",
+  "radius": 400,
+  "ballRadius": 11,
+  "pinRadius": 4,
+  "rail": { "r": 368, "from": 106, "to": 250 },
+  "launch": { "angle": 128, "r": 387, "minSpeed": 1725, "maxSpeed": 2100 },
+  "bumpers": [{ "angle": 322, "r": 388, "radius": 15 }],
+  "drain": { "x": 0, "y": 386, "halfWidth": 34, "halfHeight": 20 },
+  "pins": [
+    { "type": "line", "x1": 0, "y1": -215, "x2": 110, "y2": -150, "n": 12, "mirror": true },
+
+    { "type": "line", "x1": 62, "y1": -345, "x2": 84, "y2": -292, "n": 6, "mirror": true },
+    { "type": "line", "x1": 150, "y1": -322, "x2": 190, "y2": -274, "n": 6, "mirror": true },
+
+    { "type": "arc", "cx": 222, "cy": -30, "r": 62, "from": 185, "to": 245, "n": 7, "mirror": true },
+    { "type": "arc", "cx": 300, "cy": 70, "r": 62, "from": 185, "to": 245, "n": 7, "mirror": true },
+
+    { "type": "line", "x1": 30, "y1": 62, "x2": 30, "y2": 117, "n": 6, "mirror": true },
+    { "type": "line", "x1": 140, "y1": 160, "x2": 140, "y2": 215, "n": 6, "mirror": true },
+    { "type": "line", "x1": 200, "y1": 160, "x2": 200, "y2": 215, "n": 6, "mirror": true },
+    { "type": "line", "x1": 88, "y1": 262, "x2": 60, "y2": 300, "n": 5, "mirror": true },
+
+    {
+      "type": "field",
+      "yFrom": -290,
+      "yTo": 300,
+      "dx": 46,
+      "dy": 40,
+      "maxR": 334,
+      "clearance": 37,
+      "exclude": [
+        { "x": -112, "y": -190, "w": 224, "h": 232 },
+        { "x": -31, "y": 40, "w": 62, "h": 100 },
+        { "x": -62, "y": 240, "w": 124, "h": 120 }
+      ]
+    }
+  ]
+}

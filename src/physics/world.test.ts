@@ -1,6 +1,5 @@
-import RAPIER from '@dimforge/rapier2d-compat';
 import { describe, expect, it } from 'vitest';
-import { FIXED_DT, FixedStepper, createPhysics } from './world';
+import { FixedStepper } from './world';
 
 describe('FixedStepper', () => {
   it('runs two 120 Hz steps per 60 Hz frame', () => {
@@ -33,20 +32,5 @@ describe('FixedStepper', () => {
     expect(s.advance(0)).toBe(0);
     expect(s.advance(-1)).toBe(0);
     expect(s.advance(Number.NaN)).toBe(0);
-  });
-});
-
-describe('createPhysics', () => {
-  it('loads Rapier and simulates a falling ball', async () => {
-    const physics = await createPhysics();
-    const body = physics.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 0));
-    physics.world.createCollider(RAPIER.ColliderDesc.ball(0.1), body);
-    let steps = 0;
-    for (let i = 0; i < 60; i++) steps += physics.update(1 / 60);
-    expect(steps).toBe(120);
-    expect(physics.world.timestep).toBeCloseTo(FIXED_DT);
-    // One second of free fall: about g/2 metres down (y points down the board).
-    expect(body.translation().y).toBeGreaterThan(4.5);
-    expect(body.translation().y).toBeLessThan(5.3);
   });
 });

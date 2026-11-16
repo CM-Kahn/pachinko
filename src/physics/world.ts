@@ -1,9 +1,11 @@
 import RAPIER from '@dimforge/rapier2d-compat';
 
+export type Rapier = typeof RAPIER;
+
 /** Physics runs at a fixed rate regardless of display refresh, so shots are repeatable. */
 export const FIXED_DT = 1 / 120;
 /** Never try to catch up more than this many steps in one frame (e.g. after a tab switch). */
-export const MAX_STEPS_PER_FRAME = 8;
+export const MAX_STEPS_PER_FRAME = 6;
 
 /** Turns variable frame times into a whole number of fixed steps, carrying the remainder. */
 export class FixedStepper {
@@ -30,24 +32,8 @@ export class FixedStepper {
   }
 }
 
-export interface Physics {
-  readonly world: RAPIER.World;
-  /** Advance the simulation by a frame's worth of real time; returns steps taken. */
-  update(elapsedSeconds: number): number;
-}
-
-/** Loads the Rapier WASM module and creates an empty world. The board arrives in Phase 2. */
-export async function createPhysics(): Promise<Physics> {
+/** Loads the Rapier WASM module (once). */
+export async function loadRapier(): Promise<Rapier> {
   await RAPIER.init();
-  const world = new RAPIER.World({ x: 0, y: 9.81 });
-  world.timestep = FIXED_DT;
-  const stepper = new FixedStepper();
-  return {
-    world,
-    update(elapsedSeconds) {
-      const steps = stepper.advance(elapsedSeconds);
-      for (let i = 0; i < steps; i++) world.step();
-      return steps;
-    },
-  };
+  return RAPIER;
 }

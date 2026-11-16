@@ -1,50 +1,22 @@
-import { Container, FillGradient, Graphics, Text } from 'pixi.js';
+import { Container, FillGradient, Graphics, Rectangle, Text } from 'pixi.js';
 import { DESIGN_H, DESIGN_W } from '../layout';
+import type { LauncherLogic } from '../launcher';
 import type { GameState } from '../state';
-import { CHROME_STOPS, COLORS, FONT_STACK } from '../theme';
+import { COLORS, FONT_STACK } from '../theme';
+import { chrome, seeded } from './draw';
+import { LauncherView } from './launcherView';
 import { LedCounter } from './ledCounter';
 
-/** Where things sit in the 900 x 1600 design space. Later phases build on these. */
+/** Where things sit in the 900 x 1600 design space. */
 export const PLAYFIELD = { cx: 450, cy: 624, radius: 400 } as const;
 const HEADER = { x: 60, y: 44, w: 780, h: 120 } as const;
 const FIELD_PANEL = { x: 30, y: 184, w: 840, h: 880 } as const;
 const CONTROL_PANEL = { x: 30, y: 1084, w: 840, h: 486 } as const;
-const LEVER = { cx: 678, cy: 1330, radius: 132 } as const;
+const LAUNCHER = { x: 596, y: 1352 } as const;
 const BONUS_LIGHTS = 9;
 
-/** Small deterministic random source so the wood grain is identical on every load. */
-function seeded(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function chrome(vertical = true): FillGradient {
-  return new FillGradient({
-    type: 'linear',
-    start: { x: 0, y: 0 },
-    end: vertical ? { x: 0, y: 1 } : { x: 1, y: 1 },
-    colorStops: CHROME_STOPS,
-    textureSpace: 'local',
-  });
-}
-
 /** A wood slab with wavy grain lines, clipped to a rounded rectangle. */
-function woodSlab(
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-  base: number,
-  grainAlongX: boolean,
-  seed: number,
-): Container {
+function woodSlab(x: number, y: number, w: number, h: number, r: number, base: number, grainAlongX: boolean, seed: number): Container {
   const slab = new Container();
   slab.addChild(new Graphics().roundRect(x, y, w, h, r).fill(base));
 
@@ -64,7 +36,7 @@ function woodSlab(
       else grain.lineTo(px, py);
     }
     const dark = rand() > 0.35;
-    grain.stroke({ width: 1 + rand() * 2, color: dark ? 0x2a1608 : 0xc88a52, alpha: 0.1 + rand() * 0.16 });
+    grain.stroke({ width: 1 + rand() * 2, color: dark ? 0x4a2c0c : 0xf3d9a0, alpha: 0.1 + rand() * 0.16 });
   }
   const clip = new Graphics().roundRect(x, y, w, h, r).fill(0xffffff);
   grain.mask = clip;
@@ -115,149 +87,59 @@ function buildHeader(): Container {
   return c;
 }
 
-function buildPlayfield(): Container {
-  const c = new Container();
-  const { cx, cy, radius } = PLAYFIELD;
+/** A chunky two-state push button for the control panel. */
+class ToggleButton extends Container {
+  private readonly face = new Graphics();
+  private readonly caption: Text;
+  private active = true;
 
-  // Cream enamel panel that frames the round playfield.
-  c.addChild(
-    new Graphics()
-      .roundRect(FIELD_PANEL.x - 4, FIELD_PANEL.y - 4, FIELD_PANEL.w + 8, FIELD_PANEL.h + 8, 34)
-      .fill(chrome())
-      .roundRect(FIELD_PANEL.x, FIELD_PANEL.y, FIELD_PANEL.w, FIELD_PANEL.h, 30)
-      .fill(
-        new FillGradient({
-          type: 'linear',
-          start: { x: 0, y: 0 },
-          end: { x: 0, y: 1 },
-          colorStops: [
-            { offset: 0, color: COLORS.cream },
-            { offset: 1, color: COLORS.creamShade },
-          ],
-          textureSpace: 'local',
-        }),
-      ),
-  );
-
-  // Chrome ring, dark groove, then the teal board face.
-  c.addChild(
-    new Graphics()
-      .circle(cx, cy + 5, radius + 20)
-      .fill({ color: 0x000000, alpha: 0.22 })
-      .circle(cx, cy, radius + 18)
-      .fill(chrome(false))
-      .circle(cx, cy, radius + 5)
-      .fill(COLORS.ink)
-      .circle(cx, cy, radius)
-      .fill(
-        new FillGradient({
-          type: 'radial',
-          center: { x: 0.5, y: 0.42 },
-          innerRadius: 0,
-          outerCenter: { x: 0.5, y: 0.5 },
-          outerRadius: 0.5,
-          colorStops: [
-            { offset: 0, color: 0x3aa19c },
-            { offset: 0.7, color: COLORS.teal },
-            { offset: 1, color: COLORS.tealDeep },
-          ],
-          textureSpace: 'local',
-        }),
-      ),
-  );
-
-  // Mid-century starburst, very faint, so the empty board isn't blank.
-  const star = new Graphics();
-  const points = 16;
-  const pts: number[] = [];
-  for (let i = 0; i < points * 2; i++) {
-    const long = i % 4 === 0;
-    const r = i % 2 === 1 ? 26 : long ? 230 : 130;
-    const a = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
-    pts.push(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+  constructor(
+    private readonly labels: { on: string; off: string },
+    private readonly onChange: (on: boolean) => void,
+  ) {
+    super();
+    this.caption = new Text({
+      text: '',
+      style: { fontFamily: FONT_STACK, fontSize: 24, fontWeight: '700', fill: COLORS.ink, letterSpacing: 4 },
+    });
+    this.caption.anchor.set(0.5);
+    this.caption.position.set(134, 31);
+    this.addChild(this.face, this.caption);
+    this.eventMode = 'static';
+    this.cursor = 'pointer';
+    this.hitArea = new Rectangle(-10, -10, 260, 82);
+    this.on('pointertap', () => {
+      this.set(!this.active);
+      this.onChange(this.active);
+    });
+    this.set(true);
   }
-  star.poly(pts).fill({ color: COLORS.cream, alpha: 0.1 });
-  star.circle(cx, cy, 300).stroke({ width: 2, color: COLORS.cream, alpha: 0.1 });
-  c.addChild(star);
 
-  // Glass: a soft highlight arc across the upper left.
-  const glass = new Graphics();
-  glass
-    .arc(cx, cy, radius - 14, Math.PI * 1.08, Math.PI * 1.45)
-    .stroke({ width: 10, color: 0xffffff, alpha: 0.1, cap: 'round' })
-    .arc(cx, cy, radius - 34, Math.PI * 1.14, Math.PI * 1.34)
-    .stroke({ width: 5, color: 0xffffff, alpha: 0.08, cap: 'round' });
-  c.addChild(glass);
-  return c;
-}
-
-function buildLever(): Container {
-  const c = new Container();
-  const { cx, cy, radius } = LEVER;
-  c.addChild(
-    new Graphics()
-      .circle(cx, cy + 6, radius + 6)
+  set(on: boolean): void {
+    this.active = on;
+    this.caption.text = on ? this.labels.on : this.labels.off;
+    this.face
+      .clear()
+      .roundRect(0, 4, 240, 62, 31)
       .fill({ color: 0x000000, alpha: 0.35 })
-      .circle(cx, cy, radius)
-      .fill(chrome(false))
-      .circle(cx, cy, radius - 14)
-      .fill(COLORS.ink)
-      .circle(cx, cy, radius - 18)
-      .fill(COLORS.cream),
-  );
-
-  // Power scale around the dial.
-  const ticks = new Graphics();
-  const from = Math.PI * 0.75;
-  const to = Math.PI * 2.25;
-  const n = 20;
-  for (let i = 0; i <= n; i++) {
-    const a = from + ((to - from) * i) / n;
-    const major = i % 5 === 0;
-    const r0 = radius - (major ? 46 : 38);
-    const r1 = radius - 26;
-    ticks
-      .moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0)
-      .lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1)
-      .stroke({ width: major ? 4 : 2, color: i > 15 ? COLORS.neon : COLORS.tealDeep, cap: 'round' });
+      .roundRect(0, 0, 240, 62, 31)
+      .fill(chrome())
+      .roundRect(5, 5, 230, 52, 26)
+      .fill(on ? COLORS.cream : 0xb9ae93);
+    this.face.circle(34, 31, 9).fill(on ? COLORS.ledOn : 0x4a1410);
   }
-  c.addChild(ticks);
-
-  // The handle, resting at zero power.
-  const handle = new Graphics()
-    .roundRect(-13, -radius + 30, 26, radius - 20, 13)
-    .fill(chrome(false))
-    .circle(0, -radius + 34, 21)
-    .fill(COLORS.neon)
-    .circle(-6, -radius + 28, 6)
-    .fill({ color: 0xffffff, alpha: 0.45 })
-    .circle(0, 0, 34)
-    .fill(chrome())
-    .circle(0, 0, 34)
-    .stroke({ width: 2, color: 0x3c4348, alpha: 0.7 })
-    .circle(0, 0, 12)
-    .fill(COLORS.ink);
-  handle.position.set(cx, cy);
-  handle.rotation = from + Math.PI / 2;
-  c.addChild(handle);
-
-  const label = new Text({
-    text: 'POWER',
-    style: { fontFamily: FONT_STACK, fontSize: 24, fontWeight: '700', fill: COLORS.cream, letterSpacing: 6 },
-  });
-  label.anchor.set(0.5);
-  label.position.set(cx + 3, cy + radius + 36);
-  c.addChild(label);
-  return c;
 }
 
 /** The whole machine, drawn in design units. Scale and position it with `fitCabinet`. */
 export class Cabinet extends Container {
   readonly ballsRemaining = new LedCounter('BALLS REMAINING');
   readonly ballsAwarded = new LedCounter('BALLS AWARDED');
-  readonly highScore = new LedCounter('HIGH SCORE');
+  /** Holds the board; its origin is the centre of the round playfield. */
+  readonly boardLayer = new Container();
+  readonly launcher: LauncherView;
+  readonly soundButton: ToggleButton;
 
-  constructor() {
+  constructor(logic: LauncherLogic, onSoundToggle: (on: boolean) => void) {
     super();
 
     // Cabinet body.
@@ -271,7 +153,29 @@ export class Cabinet extends Container {
         .stroke({ width: 4, fill: chrome() }),
     );
 
-    this.addChild(buildHeader(), buildPlayfield());
+    this.addChild(buildHeader());
+
+    // Enamel panel that frames the round playfield.
+    this.addChild(
+      new Graphics()
+        .roundRect(FIELD_PANEL.x - 4, FIELD_PANEL.y - 4, FIELD_PANEL.w + 8, FIELD_PANEL.h + 8, 34)
+        .fill(chrome())
+        .roundRect(FIELD_PANEL.x, FIELD_PANEL.y, FIELD_PANEL.w, FIELD_PANEL.h, 30)
+        .fill(
+          new FillGradient({
+            type: 'linear',
+            start: { x: 0, y: 0 },
+            end: { x: 0, y: 1 },
+            colorStops: [
+              { offset: 0, color: COLORS.surround },
+              { offset: 1, color: 0xdccb98 },
+            ],
+            textureSpace: 'local',
+          }),
+        ),
+    );
+    this.boardLayer.position.set(PLAYFIELD.cx, PLAYFIELD.cy);
+    this.addChild(this.boardLayer);
 
     // Control panel.
     const p = CONTROL_PANEL;
@@ -281,13 +185,18 @@ export class Cabinet extends Container {
       new Graphics().roundRect(p.x, p.y, p.w, p.h, 30).stroke({ width: 3, color: 0x000000, alpha: 0.35 }),
     );
 
-    const counters = [this.ballsRemaining, this.ballsAwarded, this.highScore];
-    counters.forEach((counter, i) => {
-      counter.position.set(p.x + 44, p.y + 26 + i * 152);
-      this.addChild(counter);
-    });
+    this.ballsRemaining.position.set(p.x + 44, p.y + 30);
+    this.ballsAwarded.position.set(p.x + 44, p.y + 190);
+    this.addChild(this.ballsRemaining, this.ballsAwarded);
 
-    this.addChild(buildLever());
+    this.soundButton = new ToggleButton({ on: 'SOUND ON', off: 'SOUND OFF' }, onSoundToggle);
+    this.soundButton.position.set(p.x + 44, p.y + 380);
+    this.addChild(this.soundButton);
+
+    // The whole right-hand side of the panel grabs the handle, so thumbs can't miss.
+    this.launcher = new LauncherView(logic, new Rectangle(440 - LAUNCHER.x, p.y - LAUNCHER.y, p.x + p.w - 440, p.h));
+    this.launcher.position.set(LAUNCHER.x, LAUNCHER.y);
+    this.addChild(this.launcher);
 
     const inset = 34;
     const corners: [number, number][] = [
@@ -303,6 +212,5 @@ export class Cabinet extends Container {
   show(state: GameState): void {
     this.ballsRemaining.value = state.ballsRemaining;
     this.ballsAwarded.value = state.ballsAwarded;
-    this.highScore.value = state.highScore;
   }
 }

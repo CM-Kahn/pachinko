@@ -13,6 +13,13 @@ npm run check    # lint, typecheck, unit tests, build, browser smoke tests
 
 Browser smoke tests save a screenshot per screen size under `test-results/`.
 
+## Tuning
+
+- The board layout is data: `src/board/classic.json` (format described in `src/board/types.ts`).
+- The feel of the physics (gravity, bounce, launch variation) is the `TUNING` block in
+  `src/physics/sim.ts`; the firing rhythm is at the top of `src/launcher.ts`.
+- Add `?stress=60` to the address to keep 60 balls on the board for performance checks.
+
 ## Deploy
 
 Every push runs the checks in GitHub Actions. Pushes to `main` also publish `dist/` to

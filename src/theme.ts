@@ -1,15 +1,25 @@
-/** Showa-era retro arcade palette: cream and teal enamel, chrome, warm wood, neon accents. */
+/**
+ * Showa-era retro arcade palette, after the look of 1970s machines: honey wood cabinet,
+ * chrome frame, cream playfield with faded mid-century flowers, turquoise and coral accents.
+ */
 export const COLORS = {
   room: 0x14100d,
-  wood: 0x7b4a27,
-  woodDark: 0x54301a,
-  woodPanel: 0x633a1f,
-  cream: 0xf2e6c8,
-  creamShade: 0xd9caa4,
+  wood: 0xc9a155,
+  woodDark: 0x8d6c30,
+  woodPanel: 0x5f3a1f,
+  cream: 0xf5ecd2,
+  creamShade: 0xe6d8ae,
+  surround: 0xecdfb8,
   teal: 0x2e8c8a,
   tealDeep: 0x1c5f63,
+  turquoise: 0x6fc4cc,
   neon: 0xff6b5a,
   brass: 0xc9a253,
+  brassDark: 0x7d5f22,
+  sage: 0x9db58a,
+  mustard: 0xe3b94f,
+  coral: 0xf08a6e,
+  sky: 0x8fc7d6,
   ledOn: 0xff2a14,
   ledGhost: 0x3a0a06,
   ledWindow: 0x120403,
