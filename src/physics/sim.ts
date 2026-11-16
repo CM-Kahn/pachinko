@@ -1,6 +1,7 @@
-import type { RigidBody, World, EventQueue } from '@dimforge/rapier2d-compat';
+import type { Collider, RigidBody, World, EventQueue } from '@dimforge/rapier2d-compat';
 import { angleOf } from '../board/loader';
-import type { Board } from '../board/types';
+import { isCaught, pocketOutline } from '../board/shapes';
+import type { Board, Pocket } from '../board/types';
 import { FIXED_DT, type Rapier } from './world';
 
 /** Board units (design pixels) per physics unit. Rapier is happiest with sizes near 1. */
@@ -23,9 +24,16 @@ export const TUNING = {
   stuckSpeed: 14,
   stuckAfter: 0.6,
   maxBalls: 160,
+  /**
+   * The luck setting leans balls that are just above a catcher towards it (or away from it).
+   * This is the sideways pull at full luck, in board units per second squared.
+   */
+  luckPull: 1500,
+  luckReachX: 85,
+  luckReachY: 120,
 } as const;
 
-export type HitKind = 'pin' | 'wall' | 'rail' | 'bumper' | 'ball';
+export type HitKind = 'pin' | 'wall' | 'rail' | 'bumper' | 'ball' | 'cup';
 
 export interface Ball {
   readonly id: number;
@@ -45,6 +53,16 @@ export interface SimEvents {
   onHit?(kind: HitKind, speed: number, x: number, y: number): void;
   /** A ball left the board through the out hole. */
   onDrain?(ball: Ball): void;
+  /** A ball was caught by a pocket, tulip or the attacker. */
+  onCatch?(pocket: Pocket, ball: Ball): void;
+}
+
+interface PocketState {
+  pocket: Pocket;
+  open: boolean;
+  /** Walls for the closed and open shapes; only the current one is switched on. */
+  closedWalls: Collider | null;
+  openWalls: Collider | null;
 }
 
 /** The pachinko board as a physics world. Knows nothing about drawing or sound. */
@@ -54,7 +72,10 @@ export class Simulation {
   private readonly queue: EventQueue;
   private readonly kinds = new Map<number, HitKind>();
   private readonly byCollider = new Map<number, Ball>();
+  private readonly pockets: PocketState[] = [];
   private nextId = 1;
+  /** The luck setting, -1 (harder) to +1 (easier). */
+  luck = 0;
 
   constructor(
     private readonly R: Rapier,
@@ -104,6 +125,44 @@ export class Simulation {
         'bumper',
       );
     }
+
+    const d = board.display;
+    add(
+      R.ColliderDesc.roundCuboid((d.halfWidth - 8) / SCALE, (d.halfHeight - 8) / SCALE, 8 / SCALE)
+        .setTranslation(d.x / SCALE, d.y / SCALE)
+        .setRestitution(0.3)
+        .setFriction(TUNING.wallFriction),
+      'cup',
+    );
+
+    for (const pocket of board.pockets) {
+      const walls = (open: boolean): Collider | null => {
+        const pts = pocketOutline(pocket, open).map((p) => ({ x: pocket.x + p.x, y: pocket.y + p.y }));
+        if (pts.length < 2) return null;
+        const collider = this.world.createCollider(chain(pts, false).setRestitution(0.25), fixed);
+        this.kinds.set(collider.handle, 'cup');
+        return collider;
+      };
+      const closedWalls = walls(false);
+      const openWalls = pocket.kind === 'tulip' ? walls(true) : null;
+      openWalls?.setEnabled(false);
+      this.pockets.push({ pocket, open: false, closedWalls, openWalls });
+    }
+  }
+
+  /** Open or close a tulip or the attacker. */
+  setOpen(id: string, open: boolean): void {
+    const state = this.pockets.find((p) => p.pocket.id === id);
+    if (!state || state.open === open) return;
+    state.open = open;
+    if (state.openWalls) {
+      state.closedWalls?.setEnabled(!open);
+      state.openWalls.setEnabled(open);
+    }
+  }
+
+  isOpen(id: string): boolean {
+    return this.pockets.find((p) => p.pocket.id === id)?.open ?? false;
   }
 
   /** True when the launch point is clear and there is room for another ball. */
@@ -253,6 +312,28 @@ export class Simulation {
       if (drained || escaped) {
         this.remove(i);
         events.onDrain?.(ball);
+        continue;
+      }
+
+      let caught: Pocket | null = null;
+      for (const state of this.pockets) {
+        const { pocket } = state;
+        const dx = ball.x - pocket.x;
+        const dy = ball.y - pocket.y;
+        if (isCaught(pocket, state.open, dx, dy)) {
+          caught = pocket;
+          break;
+        }
+        // Luck: a ball falling just above a catcher is leaned towards it, or away from it.
+        if (this.luck !== 0 && pocket.kind !== 'attacker' && dy < 0 && dy > -TUNING.luckReachY && Math.abs(dx) < TUNING.luckReachX) {
+          // The start pocket is leaned on less, so even an unlucky machine still spins its reels.
+          const lean = -Math.sign(dx) * Math.min(1, Math.abs(dx) / 12) * (pocket.kind === 'start' ? 0.35 : 1);
+          body.applyImpulse({ x: (this.luck * lean * TUNING.luckPull * body.mass() * FIXED_DT) / SCALE, y: 0 }, true);
+        }
+      }
+      if (caught) {
+        this.remove(i);
+        events.onCatch?.(caught, ball);
         continue;
       }
 

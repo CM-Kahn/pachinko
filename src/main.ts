@@ -3,6 +3,7 @@ import { Sound } from './audio/sound';
 import classic from './board/classic.json';
 import { loadBoard } from './board/loader';
 import type { BoardSpec } from './board/types';
+import { Machine } from './game/machine';
 import { LauncherLogic } from './launcher';
 import { fitCabinet } from './layout';
 import type { Simulation } from './physics/sim';
@@ -11,19 +12,28 @@ import { loadSettings, saveSettings, type Settings } from './settings';
 import { STARTING_BALLS, newGameState, saveProgress } from './state';
 import { COLORS } from './theme';
 import { BoardView } from './ui/boardView';
-import { Cabinet } from './ui/cabinet';
+import { Cabinet, REFILL } from './ui/cabinet';
 import { FULL_PULL_DRAG } from './ui/launcherView';
-import { DONE_BUTTON, LUCK_TRACK, SOUND_SWITCH } from './ui/settingsPanel';
+import { DONE_BUTTON, LUCK_TRACK, PAYOUT_BUTTONS, SOUND_SWITCH } from './ui/settingsPanel';
 
 /** Sharp on Retina screens without paying for more pixels than anyone can see. */
 const MAX_PIXEL_RATIO = 3;
-/** Until payouts and the refill button arrive in Phase 3, an empty machine tops itself up. */
-const AUTO_REFILL_DELAY = 1.5;
+/** The refill card waits this long after the last ball is gone, so it never pops up mid-play. */
+const REFILL_DELAY = 0.8;
 
 /** Numbers the browser tests (and the curious) can read from the console. */
 interface DebugInfo {
   ballsOnBoard: number;
   ballsRemaining: number;
+  ballsAwarded: number;
+  /** Balls won that are still trickling into the tray. */
+  ballsOwed: number;
+  /** Which tulips are open, by id. */
+  tulipsOpen: Record<string, boolean>;
+  reels: number[];
+  jackpotRound: number | null;
+  lights: number;
+  refillShown: boolean;
   fps: number;
   /** Average cost of one physics step; there are two per frame at 60 fps. */
   physicsMsPerStep: number;
@@ -40,11 +50,15 @@ interface DebugInfo {
     luckLeft: { x: number; y: number };
     luckRight: { x: number; y: number };
     done: { x: number; y: number };
+    payout: Record<string, { x: number; y: number }>;
+    refill: { x: number; y: number };
   };
 }
 declare global {
   interface Window {
     __pachinko?: () => DebugInfo;
+    /** For the browser tests: behave as if a ball had just landed in the pocket with this id. */
+    __pachinkoCatch?: (pocketId: string) => void;
   }
 }
 
@@ -68,18 +82,56 @@ async function start(): Promise<void> {
     window.addEventListener(type, unlock, { passive: true });
   }
 
+  const params = new URLSearchParams(location.search);
   const state = newGameState();
+  // For testing: start with a chosen number of balls, e.g. ?balls=3.
+  const startBalls = Number(params.get('balls'));
+  if (Number.isInteger(startBalls) && startBalls > 0 && startBalls <= STARTING_BALLS) state.ballsRemaining = startBalls;
   const logic = new LauncherLogic();
   const board = loadBoard(classic as BoardSpec);
+  let sim: Simulation | null = null;
 
   const settings = loadSettings();
   sound.muted = !settings.soundOn;
-  const cabinet = new Cabinet(logic, settings, (changed) => {
-    sound.muted = !changed.soundOn;
-    sound.unlock();
-    saveSettings(changed);
-  });
   const boardView = new BoardView(board, app.renderer);
+  const machine = new Machine({
+    onTulip: (id, open) => {
+      sim?.setOpen(id, open);
+      sound.snap(open);
+    },
+    onAttacker: (open) => {
+      sim?.setOpen('attacker', open);
+      sound.snap(open);
+    },
+    onWin: (pocket, balls) => {
+      boardView.popup(pocket, balls);
+      sound.win();
+    },
+    onReelStop: () => sound.reelStop(),
+    onReach: () => sound.reach(),
+    onJackpot: () => sound.jackpot(),
+    onRound: (round) => {
+      if (round > 1) sound.fanfare();
+    },
+    onBonus: () => sound.fanfare(),
+    // For testing: ?rig=jackpot makes every spin three of a kind.
+  }, params.get('rig') === 'jackpot' ? () => 0 : Math.random);
+  machine.payout = settings.payout;
+  const cabinet = new Cabinet(
+    logic,
+    settings,
+    (changed) => {
+      sound.muted = !changed.soundOn;
+      sound.unlock();
+      machine.payout = changed.payout;
+      if (sim) sim.luck = changed.luck;
+      saveSettings(changed);
+    },
+    () => {
+      state.ballsRemaining = STARTING_BALLS;
+      cabinet.refill.visible = false;
+    },
+  );
   cabinet.boardLayer.addChild(boardView);
   app.stage.addChild(cabinet);
   cabinet.show(state);
@@ -97,9 +149,11 @@ async function start(): Promise<void> {
 
   // The cabinet is on screen; now fetch the physics engine (the heavy part of the download).
   const [{ Simulation: Sim }, { loadRapier }] = await Promise.all([import('./physics/sim'), import('./physics/world')]);
-  const sim: Simulation = new Sim(await loadRapier(), board);
+  const world: Simulation = new Sim(await loadRapier(), board);
+  world.luck = settings.luck;
+  sim = world;
 
-  const stress = Number(new URLSearchParams(location.search).get('stress')) || 0;
+  const stress = Number(params.get('stress')) || 0;
   const stepper = new FixedStepper();
   let pendingShot: number | null = null;
   let savedAwarded = state.ballsAwarded;
@@ -114,6 +168,7 @@ async function start(): Promise<void> {
       if (ball.entered) sound.drain();
       else state.ballsRemaining++;
     },
+    onCatch: (pocket: Parameters<Machine['catch']>[0]) => machine.catch(pocket),
   };
 
   cabinet.launcher.onTouch = unlock;
@@ -126,7 +181,7 @@ async function start(): Promise<void> {
     const steps = stepper.advance(dt);
     const t0 = performance.now();
     for (let i = 0; i < steps; i++) {
-      if (pendingShot !== null && state.ballsRemaining > 0 && sim.launch(pendingShot)) {
+      if (pendingShot !== null && state.ballsRemaining > 0 && world.launch(pendingShot)) {
         state.ballsRemaining--;
         sound.launch(pendingShot);
         cabinet.launcher.fired();
@@ -134,19 +189,29 @@ async function start(): Promise<void> {
       }
       if (state.ballsRemaining === 0) pendingShot = null;
 
-      while (stress > 0 && sim.balls.length < stress) {
-        if (!sim.spawn(-250 + Math.random() * 500, -310 + Math.random() * 50, 0, 0)) break;
+      while (stress > 0 && world.balls.length < stress) {
+        if (!world.spawn(-250 + Math.random() * 500, -310 + Math.random() * 50, 0, 0)) break;
       }
-      sim.step(events);
+      world.step(events);
+    }
+
+    // Winnings trickle into the tray and onto the Balls Awarded counter.
+    const paid = machine.update(dt);
+    if (paid > 0) {
+      state.ballsRemaining += paid;
+      state.ballsAwarded += paid;
+      sound.coin();
     }
     if (steps > 0) physicsMs += ((performance.now() - t0) / steps - physicsMs) * 0.05;
     if (dt > 0) fps += (1 / dt - fps) * 0.05;
 
-    if (state.ballsRemaining === 0 && sim.balls.length === 0) {
+    // Out of balls with nothing left in play: offer a free refill.
+    if (state.ballsRemaining === 0 && world.balls.length === 0 && !machine.busy) {
       emptyFor += dt;
-      if (emptyFor > AUTO_REFILL_DELAY) state.ballsRemaining = STARTING_BALLS;
+      if (emptyFor > REFILL_DELAY) cabinet.refill.visible = true;
     } else {
       emptyFor = 0;
+      cabinet.refill.visible = false;
     }
 
     if (state.ballsAwarded !== savedAwarded) {
@@ -155,7 +220,10 @@ async function start(): Promise<void> {
     }
 
     cabinet.launcher.update(dt);
-    boardView.sync(sim.balls);
+    boardView.sync(world.balls);
+    boardView.update(dt, machine);
+    // The bonus strip blinks all its bulbs while it celebrates.
+    cabinet.showLights(machine.bonusFlash > 0 ? (Math.floor(machine.bonusFlash * 6) % 2 === 0 ? 9 : 0) : machine.lights);
     cabinet.show(state);
   });
 
@@ -181,14 +249,27 @@ async function start(): Promise<void> {
         luckLeft: at(LUCK_TRACK.x0, LUCK_TRACK.y),
         luckRight: at(LUCK_TRACK.x1, LUCK_TRACK.y),
         done: at(DONE_BUTTON.x + DONE_BUTTON.w / 2, DONE_BUTTON.y + DONE_BUTTON.h / 2),
+        payout: Object.fromEntries(PAYOUT_BUTTONS.map((b) => [String(b.value), at(b.x + b.w / 2, b.y + b.h / 2)])),
+        refill: at(REFILL.x, REFILL.buttonY),
       },
-      ballsOnBoard: sim.balls.length,
+      ballsOnBoard: world.balls.length,
       ballsRemaining: state.ballsRemaining,
+      ballsAwarded: state.ballsAwarded,
+      ballsOwed: machine.owedBalls,
+      tulipsOpen: Object.fromEntries(board.pockets.filter((p) => p.kind === 'tulip').map((p) => [p.id, machine.isOpen(p.id)])),
+      reels: [...machine.reels],
+      jackpotRound: machine.jackpotRound?.round ?? null,
+      lights: machine.lights,
+      refillShown: cabinet.refill.visible,
       fps,
       physicsMsPerStep: physicsMs,
       handle: { x: box.left + centre.x, y: box.top + centre.y },
       fullPull: FULL_PULL_DRAG * cabinet.scale.x,
     };
+  };
+  window.__pachinkoCatch = (id) => {
+    const pocket = board.pockets.find((p) => p.id === id);
+    if (pocket) machine.catch(pocket);
   };
   document.documentElement.dataset.ready = 'true';
 }

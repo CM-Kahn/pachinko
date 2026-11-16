@@ -16,6 +16,8 @@ const FIELD_PANEL = { x: 30, y: 184, w: 840, h: 880 } as const;
 const CONTROL_PANEL = { x: 30, y: 1084, w: 840, h: 486 } as const;
 const LAUNCHER = { x: 596, y: 1352 } as const;
 const BONUS_LIGHTS = 9;
+/** Centre of the refill card, and of its button's caption, over the playfield. */
+export const REFILL = { x: 450, y: 640, buttonY: 671 } as const;
 
 /** A wood slab with wavy grain lines, clipped to a rounded rectangle. */
 function woodSlab(x: number, y: number, w: number, h: number, r: number, base: number, grainAlongX: boolean, seed: number): Container {
@@ -54,7 +56,7 @@ function screw(x: number, y: number, angle: number): Graphics {
   return g;
 }
 
-function buildHeader(): Container {
+function buildHeader(bulbs: Graphics): Container {
   const c = new Container();
   c.addChild(
     new Graphics()
@@ -77,16 +79,27 @@ function buildHeader(): Container {
     c.addChild(t);
   }
 
-  // Bonus light strip: unlit bulbs for now; they come alive in Phase 3.
-  const bulbs = new Graphics();
+  c.addChild(bulbs);
+  return c;
+}
+
+/** The bonus light strip under the title: `lit` bulbs glow, counted from the left. */
+function drawBulbs(bulbs: Graphics, lit: number): void {
+  bulbs.clear();
   const span = 520;
   for (let i = 0; i < BONUS_LIGHTS; i++) {
     const x = DESIGN_W / 2 - span / 2 + (span * i) / (BONUS_LIGHTS - 1);
     const y = HEADER.y + 96;
-    bulbs.circle(x, y, 10).fill(0x0f3a3d).circle(x, y, 7.5).fill(0x5a2a22).circle(x - 2.5, y - 2.5, 2.2).fill({ color: 0xffffff, alpha: 0.35 });
+    const on = i < lit;
+    if (on) bulbs.circle(x, y, 15).fill({ color: COLORS.mustard, alpha: 0.3 });
+    bulbs
+      .circle(x, y, 10)
+      .fill(0x0f3a3d)
+      .circle(x, y, 7.5)
+      .fill(on ? 0xffd45e : 0x5a2a22)
+      .circle(x - 2.5, y - 2.5, 2.2)
+      .fill({ color: 0xffffff, alpha: on ? 0.8 : 0.35 });
   }
-  c.addChild(bulbs);
-  return c;
 }
 
 /** A chunky chrome-rimmed push button for the control panel. */
@@ -123,8 +136,12 @@ export class Cabinet extends Container {
   readonly launcher: LauncherView;
   readonly settingsButton: PushButton;
   readonly settingsPanel: SettingsPanel;
+  /** Appears over the playfield when the tray is empty; pressing it gives a free tray. */
+  readonly refill = new Container();
+  private readonly bulbs = new Graphics();
+  private litBulbs = -1;
 
-  constructor(logic: LauncherLogic, settings: Settings, onSettingsChange: (settings: Settings) => void) {
+  constructor(logic: LauncherLogic, settings: Settings, onSettingsChange: (settings: Settings) => void, onRefill: () => void) {
     super();
 
     // Cabinet body.
@@ -138,7 +155,8 @@ export class Cabinet extends Container {
         .stroke({ width: 4, fill: chrome() }),
     );
 
-    this.addChild(buildHeader());
+    this.addChild(buildHeader(this.bulbs));
+    this.showLights(0);
 
     // Enamel panel that frames the round playfield.
     this.addChild(
@@ -193,8 +211,31 @@ export class Cabinet extends Container {
     ];
     corners.forEach(([x, y], i) => this.addChild(screw(x, y, 0.5 + i * 1.1)));
 
+    // Free refill, shown over the playfield only when the player is out of balls.
+    const card = new Graphics()
+      .roundRect(REFILL.x - 206, REFILL.y - 96, 412, 192, 30)
+      .fill(chrome())
+      .roundRect(REFILL.x - 200, REFILL.y - 90, 400, 180, 26)
+      .fill(COLORS.tealDeep);
+    card.eventMode = 'static';
+    const out = new Text({ text: 'OUT OF BALLS', style: { fontFamily: FONT_STACK, fontSize: 34, fontWeight: '800', fill: COLORS.cream, letterSpacing: 6 } });
+    out.anchor.set(0.5);
+    out.position.set(REFILL.x + 3, REFILL.y - 44);
+    const button = new PushButton('FREE REFILL', onRefill);
+    button.position.set(REFILL.x - 120, REFILL.y);
+    this.refill.addChild(card, out, button);
+    this.refill.visible = false;
+    this.addChild(this.refill);
+
     // Last, so it opens on top of everything.
     this.addChild(this.settingsPanel);
+  }
+
+  /** Light the first `lit` bulbs of the bonus strip. */
+  showLights(lit: number): void {
+    if (lit === this.litBulbs) return;
+    this.litBulbs = lit;
+    drawBulbs(this.bulbs, lit);
   }
 
   /** Push the latest numbers to the LED counters. */

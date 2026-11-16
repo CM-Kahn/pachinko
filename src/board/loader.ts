@@ -1,4 +1,5 @@
-import type { Board, BoardSpec, FieldItem, PinSpec, Vec, Zone } from './types';
+import { TULIP_OPEN_HALF_WIDTH } from './shapes';
+import type { Board, BoardSpec, FieldItem, PinSpec, Pocket, Vec, Zone } from './types';
 
 const RAD = Math.PI / 180;
 
@@ -34,7 +35,7 @@ function placed(item: Exclude<PinSpec, FieldItem>): Vec[] {
   return out;
 }
 
-function field(item: FieldItem, others: Vec[]): Vec[] {
+function field(item: FieldItem, others: Vec[], keepOut: Zone[]): Vec[] {
   const out: Vec[] = [];
   let row = 0;
   for (let y = item.yFrom; y <= item.yTo + 1e-6; y += item.dy, row++) {
@@ -46,7 +47,7 @@ function field(item: FieldItem, others: Vec[]): Vec[] {
       if (offset !== 0 && k === 0) continue;
       const p = { x, y };
       if (Math.hypot(x, y) > item.maxR) continue;
-      if (item.exclude?.some((z) => inZone(p, z))) continue;
+      if (item.exclude?.some((z) => inZone(p, z)) || keepOut.some((z) => inZone(p, z))) continue;
       if (others.some((o) => Math.hypot(o.x - x, o.y - y) < item.clearance)) continue;
       out.push(p);
     }
@@ -69,8 +70,26 @@ function arcPoints(r: number, from: number, to: number, stepDeg: number): Vec[] 
 
 /** Expand a board file into plain coordinates. Throws if the layout is unplayable. */
 export function loadBoard(spec: BoardSpec): Board {
+  const pockets: Pocket[] = spec.pockets.map((p) => ({
+    id: p.id,
+    kind: p.kind,
+    x: p.x,
+    y: p.y,
+    halfWidth: p.kind === 'tulip' ? TULIP_OPEN_HALF_WIDTH : (p.halfWidth ?? 24),
+    opens: p.opens ?? null,
+  }));
+  const ids = new Set(pockets.map((p) => p.id));
+  if (ids.size !== pockets.length) throw new Error(`Board "${spec.name}": two pockets share an id`);
+  for (const p of pockets) {
+    if (p.opens !== null && pockets.find((q) => q.id === p.opens)?.kind !== 'tulip') {
+      throw new Error(`Board "${spec.name}": pocket "${p.id}" opens "${p.opens}", which is not a tulip`);
+    }
+  }
+  // Field pins keep clear of every catcher so a ball always has room to get in.
+  const keepOut: Zone[] = pockets.map((p) => ({ x: p.x - p.halfWidth - 24, y: p.y - 44, w: (p.halfWidth + 24) * 2, h: 84 }));
+
   const explicit = dedupe(spec.pins.flatMap((item) => (item.type === 'field' ? [] : placed(item))));
-  const fields = spec.pins.flatMap((item) => (item.type === 'field' ? field(item, explicit) : []));
+  const fields = spec.pins.flatMap((item) => (item.type === 'field' ? field(item, explicit, keepOut) : []));
   const pins = dedupe([...explicit, ...fields]);
 
   for (const p of pins) {
@@ -95,5 +114,7 @@ export function loadBoard(spec: BoardSpec): Board {
     bumpers: spec.bumpers.map((b) => ({ ...polar(b.angle, b.r), radius: b.radius })),
     launch: { ...start, dirX: dir.x, dirY: dir.y, minSpeed: spec.launch.minSpeed, maxSpeed: spec.launch.maxSpeed },
     drain: spec.drain,
+    display: spec.display,
+    pockets,
   };
 }

@@ -61,6 +61,29 @@ export interface FieldItem {
 
 export type PinSpec = PinItem | LineItem | ArcItem | FieldItem;
 
+/**
+ * Somewhere a ball can be caught.
+ * - `start`: the pocket under the centre display; a catch spins the reels.
+ * - `tulip`: a flower catcher whose petals open wide and close again.
+ * - `side`: a plain cup with a small steady payout.
+ * - `attacker`: the big gate near the bottom that only opens during a jackpot.
+ */
+export type PocketKind = 'start' | 'tulip' | 'side' | 'attacker';
+
+export interface PocketSpec {
+  id: string;
+  kind: PocketKind;
+  /** Centre of the mouth. */
+  x: number;
+  y: number;
+  /** Half the width of the mouth. Tulips have a fixed size and ignore this. */
+  halfWidth?: number;
+  /** Tulips only: a catch here also opens the tulip with this id. */
+  opens?: string;
+}
+
+export type Pocket = Required<Omit<PocketSpec, 'opens'>> & { opens: string | null };
+
 export interface BoardSpec {
   name: string;
   /** Radius of the outer guide rail. */
@@ -75,6 +98,9 @@ export interface BoardSpec {
   bumpers: { angle: number; r: number; radius: number }[];
   /** The out hole at the bottom of the board. */
   drain: { x: number; y: number; halfWidth: number; halfHeight: number };
+  /** The solid centre display that houses the three reels. */
+  display: { x: number; y: number; halfWidth: number; halfHeight: number };
+  pockets: PocketSpec[];
   pins: PinSpec[];
 }
 
@@ -93,4 +119,6 @@ export interface Board {
   bumpers: (Vec & { radius: number })[];
   launch: Vec & { dirX: number; dirY: number; minSpeed: number; maxSpeed: number };
   drain: BoardSpec['drain'];
+  display: BoardSpec['display'];
+  pockets: Pocket[];
 }
