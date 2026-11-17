@@ -70,8 +70,9 @@ avoid any surf/beach/starfish motif (that belongs to the inspiring app).
   "refill" button resets (it's just for fun).
 - Payout numbers are tuned to feel generous and lively, not punishing.
 - **Settings button** on the control panel opens a small panel on top of the machine with the
-  sound on/off switch and a **luck slider**: default in the middle, slide one way to make balls
-  more likely to go into a hole and the other way to make it less likely. Saved on the device.
+  sound on/off switch and a **luck slider**. Luck is set the way a parlour sets it, by moving
+  pins: each tulip and side pocket has a pair of gate pins above it that spread apart for
+  Easier and close up for Harder (never tighter than a ball). Saved on the device.
 - **Payout** (also in Settings): the player chooses **5, 10 or 25 balls** for every ball that
   lands in a pocket. Every pocket pays the same, and the choice never changes how hard the
   pockets are to hit. At 5 the machine roughly breaks even over a long session; 10 and 25 are
@@ -124,7 +125,8 @@ and gives feedback before the next phase starts.
   windmills, all placed in the board JSON.
 - Bonus light strip: each tulip catch lights a bulb; nine pays a bonus.
 - Winnings trickle into the tray and onto Balls Awarded. Out of balls: a free refill card.
-- The luck slider leans balls towards or away from the pockets. Payout choice in Settings.
+- The luck slider moves the gate pins above the tulips and side pockets. Payout choice in
+  Settings.
 - First-pass sounds for wins and the tiger (the real set is Phase 4).
 - Original artwork for the tiger, tulips, paws and windmills.
 - **Done when:** a full game loop works and the tiger opens the tulips at a fun rate.

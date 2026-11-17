@@ -90,7 +90,14 @@ export function loadBoard(spec: BoardSpec): Board {
   const keepOut: Zone[] = [
     ...pockets.map((p) => ({ x: p.x - p.halfWidth - 24, y: p.y - 44, w: (p.halfWidth + 24) * 2, h: 84 })),
     ...spec.windmills.map((w) => ({ cx: w.x, cy: w.y, r: spec.windmillRadius + 30 })),
+    ...spec.gates.map((g) => ({ x: g.x - g.max / 2 - 34, y: g.y - 30, w: g.max + 68, h: 60 })),
   ];
+  for (const g of spec.gates) {
+    // A gate must never close so far that a ball could sit on its two pins.
+    if (g.min - spec.pinRadius * 2 < spec.ballRadius * 2 + 1 || g.min > g.normal || g.normal > g.max) {
+      throw new Error(`Board "${spec.name}": the gate at ${g.x},${g.y} is too narrow or out of order`);
+    }
+  }
 
   const explicit = dedupe(spec.pins.flatMap((item) => (item.type === 'field' ? [] : placed(item))));
   const fields = spec.pins.flatMap((item) => (item.type === 'field' ? field(item, explicit, keepOut) : []));
@@ -122,5 +129,6 @@ export function loadBoard(spec: BoardSpec): Board {
     windmillRadius: spec.windmillRadius,
     windmills: spec.windmills,
     pockets,
+    gates: spec.gates,
   };
 }

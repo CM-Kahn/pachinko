@@ -1,6 +1,6 @@
 import type { Collider, RigidBody, World, EventQueue } from '@dimforge/rapier2d-compat';
 import { angleOf } from '../board/loader';
-import { WINDMILL_BLADES, isCaught, pocketOutline, tigerCircles } from '../board/shapes';
+import { WINDMILL_BLADES, gatePins, isCaught, pocketOutline, tigerCircles } from '../board/shapes';
 import type { Board, Pocket } from '../board/types';
 import { FIXED_DT, type Rapier } from './world';
 
@@ -24,13 +24,6 @@ export const TUNING = {
   stuckSpeed: 14,
   stuckAfter: 0.6,
   maxBalls: 160,
-  /**
-   * The luck setting leans balls that are just above a catcher towards it (or away from it).
-   * This is the sideways pull at full luck, in board units per second squared.
-   */
-  luckPull: 1500,
-  luckReachX: 85,
-  luckReachY: 120,
   /** Windmills spin freely; this is how quickly they coast to a stop. */
   windmillDamping: 1.2,
   windmillDensity: 0.5,
@@ -79,9 +72,9 @@ export class Simulation {
   private readonly mills: RigidBody[] = [];
   /** Where each windmill is and how far it has turned (radians), for drawing. */
   readonly windmills: { x: number; y: number; rotation: number }[] = [];
+  private readonly gateColliders: Collider[] = [];
   private nextId = 1;
-  /** The luck setting, -1 (harder) to +1 (easier). */
-  luck = 0;
+  private _luck = 0;
 
   constructor(
     private readonly R: Rapier,
@@ -132,6 +125,20 @@ export class Simulation {
       );
     }
 
+    for (const gate of board.gates) {
+      for (const p of gatePins(gate, 0)) {
+        const collider = this.world.createCollider(
+          R.ColliderDesc.ball(board.pinRadius / SCALE)
+            .setTranslation(p.x / SCALE, p.y / SCALE)
+            .setRestitution(TUNING.pinRestitution)
+            .setFriction(TUNING.ballFriction),
+          fixed,
+        );
+        this.kinds.set(collider.handle, 'pin');
+        this.gateColliders.push(collider);
+      }
+    }
+
     for (const c of tigerCircles(board.tiger)) {
       add(R.ColliderDesc.ball(c.r / SCALE).setTranslation(c.x / SCALE, c.y / SCALE).setRestitution(0.3).setFriction(TUNING.wallFriction), 'cup');
     }
@@ -174,6 +181,29 @@ export class Simulation {
       openWalls?.setEnabled(false);
       this.pockets.push({ pocket, open: false, closedWalls, openWalls });
     }
+  }
+
+  /** The luck setting, -1 (harder) to +1 (easier). */
+  get luck(): number {
+    return this._luck;
+  }
+
+  /**
+   * Luck is set the way a parlour sets it: by moving the pins. Each gate's two pins are
+   * spread apart to let more balls reach the catcher below, or closed up to turn them away.
+   */
+  set luck(value: number) {
+    this._luck = Math.min(1, Math.max(-1, Number.isFinite(value) ? value : 0));
+    this.board.gates.forEach((gate, i) => {
+      gatePins(gate, this._luck).forEach((p, k) => {
+        this.gateColliders[i * 2 + k]?.setTranslationWrtParent({ x: p.x / SCALE, y: p.y / SCALE });
+      });
+    });
+  }
+
+  /** Where the adjustable gate pins are right now, for drawing. */
+  gatePinPositions(): { x: number; y: number }[] {
+    return this.board.gates.flatMap((gate) => gatePins(gate, this._luck));
   }
 
   /** Open or close a tulip. */
@@ -351,11 +381,6 @@ export class Simulation {
         if (isCaught(pocket, dx, dy)) {
           caught = pocket;
           break;
-        }
-        // Luck: a ball falling just above a catcher is leaned towards it, or away from it.
-        if (this.luck !== 0 && pocket.kind !== 'crown' && dy < 0 && dy > -TUNING.luckReachY && Math.abs(dx) < TUNING.luckReachX) {
-          const lean = -Math.sign(dx) * Math.min(1, Math.abs(dx) / 12);
-          body.applyImpulse({ x: (this.luck * lean * TUNING.luckPull * body.mass() * FIXED_DT) / SCALE, y: 0 }, true);
         }
       }
       if (caught) {

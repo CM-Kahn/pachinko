@@ -16,6 +16,7 @@ const base: BoardSpec = {
   windmillRadius: 22,
   windmills: [],
   pockets: [],
+  gates: [],
   pins: [],
 };
 
@@ -61,6 +62,13 @@ describe('loadBoard', () => {
     for (const p of farFromExtras) {
       expect(fieldPins.some((q) => Math.abs(q.x + p.x) < 1e-6 && q.y === p.y)).toBe(true);
     }
+  });
+
+  it('rejects a luck gate that could close tighter than a ball', () => {
+    const gate = { x: 0, y: 0, min: 30, normal: 40, max: 50 };
+    expect(() => loadBoard({ ...base, gates: [gate] })).toThrow(/gate/);
+    expect(() => loadBoard({ ...base, gates: [{ ...gate, min: 34 }] })).not.toThrow();
+    expect(() => loadBoard({ ...base, gates: [{ ...gate, min: 44 }] })).toThrow(/gate/);
   });
 
   it('rejects pins outside the playfield', () => {

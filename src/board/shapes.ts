@@ -1,4 +1,4 @@
-import type { Pocket, TigerSpec, Vec } from './types';
+import type { GateSpec, Pocket, TigerSpec, Vec } from './types';
 
 /**
  * The shapes of the catchers, shared by the physics (as walls) and the drawing.
@@ -68,3 +68,18 @@ export function tigerCircles(t: TigerSpec): { x: number; y: number; r: number }[
 
 /** How many blades a windmill has. */
 export const WINDMILL_BLADES = 6;
+
+/** Distance between the centres of a gate's two pins at a luck setting from -1 to +1. */
+export function gateSpacing(gate: GateSpec, luck: number): number {
+  const l = Math.min(1, Math.max(-1, luck));
+  return l < 0 ? gate.normal + (gate.min - gate.normal) * -l : gate.normal + (gate.max - gate.normal) * l;
+}
+
+/** Where a gate's two pins sit at a luck setting. */
+export function gatePins(gate: GateSpec, luck: number): [Vec, Vec] {
+  const half = gateSpacing(gate, luck) / 2;
+  return [
+    { x: gate.x - half, y: gate.y },
+    { x: gate.x + half, y: gate.y },
+  ];
+}

@@ -96,6 +96,19 @@ export interface TigerSpec {
   earRadius: number;
 }
 
+/**
+ * A pair of pins above a catcher whose spacing the luck setting adjusts, as a parlour would
+ * by bending them: wider lets more balls through, narrower turns more away. Spacings are
+ * between pin centres, for the hardest, normal and easiest settings.
+ */
+export interface GateSpec {
+  x: number;
+  y: number;
+  min: number;
+  normal: number;
+  max: number;
+}
+
 export interface BoardSpec {
   name: string;
   /** Radius of the outer guide rail. */
@@ -115,6 +128,7 @@ export interface BoardSpec {
   windmillRadius: number;
   windmills: Vec[];
   pockets: PocketSpec[];
+  gates: GateSpec[];
   pins: PinSpec[];
 }
 
@@ -137,4 +151,5 @@ export interface Board {
   windmillRadius: number;
   windmills: Vec[];
   pockets: Pocket[];
+  gates: GateSpec[];
 }

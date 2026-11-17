@@ -16,6 +16,9 @@ export class BoardView extends Container {
   private ballTexture: Texture | null = null;
   private readonly catchers = new Graphics();
   private readonly tigerFace = new Graphics();
+  /** The pins the luck setting moves. */
+  private readonly gatePins = new Graphics();
+  private gateKey = '';
   private readonly mills: Graphics[] = [];
   private catcherKey = '';
   private faceKey = '';
@@ -34,6 +37,7 @@ export class BoardView extends Container {
       this.catchers,
       this.buildWindmills(),
       this.buildPins(),
+      this.gatePins,
       this.ballLayer,
       this.buildGlass(),
     );
@@ -269,8 +273,14 @@ export class BoardView extends Container {
     }
   }
 
-  /** Bring the tiger, catchers and windmills up to date. */
-  update(machine: Machine, windmills: readonly { rotation: number }[]): void {
+  /** Bring the tiger, catchers, windmills and adjustable pins up to date. */
+  update(machine: Machine, windmills: readonly { rotation: number }[], gatePins: readonly { x: number; y: number }[]): void {
+    const gateKey = gatePins.map((p) => p.x.toFixed(1)).join(',');
+    if (gateKey !== this.gateKey) {
+      this.gateKey = gateKey;
+      this.drawPins(this.gatePins.clear(), gatePins);
+    }
+
     const key = this.board.pockets.map((p) => (machine.isOpen(p.id) ? 1 : 0)).join('');
     if (key !== this.catcherKey) {
       this.catcherKey = key;
@@ -389,15 +399,18 @@ export class BoardView extends Container {
   }
 
   private buildPins(): Graphics {
-    const g = new Graphics();
+    return this.drawPins(new Graphics(), this.board.pins);
+  }
+
+  private drawPins(g: Graphics, pins: readonly { x: number; y: number }[]): Graphics {
     const r = this.board.pinRadius;
-    for (const p of this.board.pins) g.circle(p.x + 2.5, p.y + 4, r + 0.5);
+    for (const p of pins) g.circle(p.x + 2.5, p.y + 4, r + 0.5);
     g.fill({ color: 0x3a2a10, alpha: 0.28 });
-    for (const p of this.board.pins) g.circle(p.x, p.y, r + 0.8);
+    for (const p of pins) g.circle(p.x, p.y, r + 0.8);
     g.fill(COLORS.brassDark);
-    for (const p of this.board.pins) g.circle(p.x, p.y, r);
+    for (const p of pins) g.circle(p.x, p.y, r);
     g.fill(COLORS.brass);
-    for (const p of this.board.pins) g.circle(p.x - r * 0.3, p.y - r * 0.35, r * 0.42);
+    for (const p of pins) g.circle(p.x - r * 0.3, p.y - r * 0.35, r * 0.42);
     g.fill({ color: 0xfff6d8, alpha: 0.9 });
     return g;
   }

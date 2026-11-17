@@ -212,7 +212,7 @@ async function start(): Promise<void> {
 
     cabinet.launcher.update(dt);
     boardView.sync(world.balls);
-    boardView.update(machine, world.windmills);
+    boardView.update(machine, world.windmills, world.gatePinPositions());
     // The bonus strip blinks all its bulbs while it celebrates.
     cabinet.showLights(machine.bonusFlash > 0 ? (Math.floor(machine.bonusFlash * 6) % 2 === 0 ? 9 : 0) : machine.lights);
     cabinet.show(state);

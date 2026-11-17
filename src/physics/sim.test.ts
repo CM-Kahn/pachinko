@@ -139,6 +139,23 @@ describe('Simulation', () => {
     expect(sim.windmills[0]).toMatchObject({ x: mill.x, y: mill.y });
   });
 
+  it('sets luck by moving the gate pins: wider for easier, never tighter than a ball', () => {
+    const sim = new Simulation(R, board);
+    const gap = (): number => {
+      const [a, b] = sim.gatePinPositions() as unknown as [{ x: number }, { x: number }];
+      return b.x - a.x - board.pinRadius * 2;
+    };
+    const normal = gap();
+    sim.luck = 1;
+    const easy = gap();
+    sim.luck = -1;
+    const hard = gap();
+    expect(hard).toBeLessThan(normal);
+    expect(normal).toBeLessThan(easy);
+    expect(hard).toBeGreaterThan(board.ballRadius * 2);
+    expect(sim.gatePinPositions()).toHaveLength(board.gates.length * 2);
+  });
+
   it('catches more balls the luckier the machine is set', () => {
     const catches = (luck: number): number => {
       const random = seeded(21);
