@@ -109,7 +109,7 @@ test('settings: sound switch and luck slider work and are remembered', async ({ 
   await ready(page);
   let i = await info(page);
   expect(i.settingsOpen).toBe(false);
-  expect(i.settings).toEqual({ soundOn: true, luck: 0, payout: 5 });
+  expect(i.settings).toEqual({ soundOn: true, volume: 0.8, luck: 0, payout: 5 });
 
   await page.mouse.click(i.ui.settingsButton.x, i.ui.settingsButton.y);
   await expect.poll(async () => (await info(page)).settingsOpen).toBe(true);
@@ -123,6 +123,14 @@ test('settings: sound switch and luck slider work and are remembered', async ({ 
   expect((await info(page)).ballsRemaining).toBe(250);
   await page.mouse.click(i.ui.settingsButton.x, i.ui.settingsButton.y);
   await expect.poll(async () => (await info(page)).settingsOpen).toBe(true);
+
+  // The first touch lets the browser start sound.
+  await expect.poll(async () => (await info(page)).soundRunning).toBe(true);
+
+  // Volume: tap a quarter of the way along its slider.
+  const { volumeLeft: vl, volumeRight: vr } = i.ui;
+  await page.mouse.click(vl.x + (vr.x - vl.x) * 0.25, vl.y);
+  await expect.poll(async () => (await info(page)).settings.volume).toBeCloseTo(0.25, 1);
 
   await page.mouse.click(i.ui.soundSwitch.x, i.ui.soundSwitch.y);
   await expect.poll(async () => (await info(page)).settings.soundOn).toBe(false);
@@ -151,6 +159,7 @@ test('settings: sound switch and luck slider work and are remembered', async ({ 
   expect(saved.soundOn).toBe(false);
   expect(saved.luck).toBeCloseTo(i.settings.luck, 5);
   expect(saved.payout).toBe(25);
+  expect(saved.volume).toBeCloseTo(0.25, 1);
 
   // Letting go near the middle settles back on Normal; far left is fully Harder.
   i = await info(page);

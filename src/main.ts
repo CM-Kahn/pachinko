@@ -14,7 +14,7 @@ import { COLORS } from './theme';
 import { BoardView } from './ui/boardView';
 import { Cabinet, REFILL } from './ui/cabinet';
 import { FULL_PULL_DRAG } from './ui/launcherView';
-import { DONE_BUTTON, LUCK_TRACK, PAYOUT_BUTTONS, SOUND_SWITCH } from './ui/settingsPanel';
+import { DONE_BUTTON, LUCK_TRACK, PAYOUT_BUTTONS, SOUND_SWITCH, VOLUME_TRACK } from './ui/settingsPanel';
 
 /** Sharp on Retina screens without paying for more pixels than anyone can see. */
 const MAX_PIXEL_RATIO = 3;
@@ -43,10 +43,14 @@ interface DebugInfo {
   fullPull: number;
   settings: Settings;
   settingsOpen: boolean;
+  /** True once the browser has let sound start. */
+  soundRunning: boolean;
   /** Where the settings controls are, in CSS pixels. */
   ui: {
     settingsButton: { x: number; y: number };
     soundSwitch: { x: number; y: number };
+    volumeLeft: { x: number; y: number };
+    volumeRight: { x: number; y: number };
     luckLeft: { x: number; y: number };
     luckRight: { x: number; y: number };
     done: { x: number; y: number };
@@ -78,7 +82,8 @@ async function start(): Promise<void> {
 
   const sound = new Sound();
   const unlock = (): void => sound.unlock();
-  for (const type of ['pointerdown', 'touchend', 'keydown'] as const) {
+  // iPhones only accept some of these as a real touch, so listen for all of them.
+  for (const type of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click', 'keydown'] as const) {
     window.addEventListener(type, unlock, { passive: true });
   }
 
@@ -93,13 +98,14 @@ async function start(): Promise<void> {
 
   const settings = loadSettings();
   sound.muted = !settings.soundOn;
+  sound.volume = settings.volume;
   const boardView = new BoardView(board, app.renderer);
   const machine = new Machine({
     onTulip: (id, open) => {
       sim?.setOpen(id, open);
-      sound.snap(open);
+      sound.snap(open, board.pockets.find((p) => p.id === id)?.x);
     },
-    onWin: () => sound.win(),
+    onWin: (pocket) => sound.win(pocket.x),
     onTiger: (_pocket, tulips) => {
       const all = tulips >= board.pockets.filter((p) => p.kind === 'tulip').length;
       if (all) sound.cheer();
@@ -113,6 +119,7 @@ async function start(): Promise<void> {
     settings,
     (changed) => {
       sound.muted = !changed.soundOn;
+      sound.volume = changed.volume;
       sound.unlock();
       machine.payout = changed.payout;
       if (sim) sim.luck = changed.luck;
@@ -121,6 +128,8 @@ async function start(): Promise<void> {
     () => {
       state.ballsRemaining = STARTING_BALLS;
       cabinet.refill.visible = false;
+      sound.unlock();
+      sound.pour();
     },
   );
   cabinet.boardLayer.addChild(boardView);
@@ -153,7 +162,7 @@ async function start(): Promise<void> {
   let physicsMs = 0;
 
   const events = {
-    onHit: (kind: Parameters<Sound['hit']>[0], speed: number) => sound.hit(kind, speed),
+    onHit: (kind: Parameters<Sound['hit']>[0], speed: number, x: number) => sound.hit(kind, speed, x),
     onDrain: (ball: { entered: boolean }) => {
       // A ball that rolled back down the launch lane goes back in the tray.
       if (ball.entered) sound.drain();
@@ -234,9 +243,12 @@ async function start(): Promise<void> {
     return {
       settings: { ...settings },
       settingsOpen: cabinet.settingsPanel.isOpen,
+      soundRunning: sound.running,
       ui: {
         settingsButton: at(button.x + 120, button.y + 31),
         soundSwitch: at(SOUND_SWITCH.x + SOUND_SWITCH.w / 2, SOUND_SWITCH.y + SOUND_SWITCH.h / 2),
+        volumeLeft: at(VOLUME_TRACK.x0, VOLUME_TRACK.y),
+        volumeRight: at(VOLUME_TRACK.x1, VOLUME_TRACK.y),
         luckLeft: at(LUCK_TRACK.x0, LUCK_TRACK.y),
         luckRight: at(LUCK_TRACK.x1, LUCK_TRACK.y),
         done: at(DONE_BUTTON.x + DONE_BUTTON.w / 2, DONE_BUTTON.y + DONE_BUTTON.h / 2),

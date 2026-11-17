@@ -1,6 +1,8 @@
 /** Player preferences, saved on the device. */
 export interface Settings {
   soundOn: boolean;
+  /** Loudness, 0 to 1. */
+  volume: number;
   /**
    * How kind the machine is, from -1 (harder) through 0 (the default) to +1 (easier).
    * It changes how likely a ball is to find a pocket.
@@ -13,10 +15,15 @@ export interface Settings {
 export const PAYOUTS = [5, 10, 25] as const;
 export type Payout = (typeof PAYOUTS)[number];
 
-export const DEFAULT_SETTINGS: Readonly<Settings> = { soundOn: true, luck: 0, payout: 5 };
+export const DEFAULT_SETTINGS: Readonly<Settings> = { soundOn: true, volume: 0.8, luck: 0, payout: 5 };
 const KEY = 'pachinko.settings';
 /** The luck slider settles on the default when let go this close to the middle. */
 export const LUCK_SNAP = 0.07;
+
+export function clampVolume(value: unknown): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_SETTINGS.volume;
+  return Math.min(1, Math.max(0, n));
+}
 
 export function clampLuck(value: unknown): number {
   const n = typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -40,6 +47,7 @@ export function parseSettings(text: string | null | undefined): Settings {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   return {
     soundOn: typeof o.soundOn === 'boolean' ? o.soundOn : DEFAULT_SETTINGS.soundOn,
+    volume: clampVolume(o.volume),
     luck: clampLuck(o.luck),
     payout: PAYOUTS.find((p) => p === o.payout) ?? DEFAULT_SETTINGS.payout,
   };
@@ -66,7 +74,7 @@ export function loadSettings(store: Store | null = deviceStore()): Settings {
 
 export function saveSettings(settings: Settings, store: Store | null = deviceStore()): void {
   try {
-    store?.setItem(KEY, JSON.stringify({ soundOn: settings.soundOn, luck: clampLuck(settings.luck), payout: settings.payout }));
+    store?.setItem(KEY, JSON.stringify({ soundOn: settings.soundOn, volume: clampVolume(settings.volume), luck: clampLuck(settings.luck), payout: settings.payout }));
   } catch {
     // Not saved; nothing useful to do about it.
   }

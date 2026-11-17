@@ -131,11 +131,20 @@ and gives feedback before the next phase starts.
 - Original artwork for the tiger, tulips, paws and windmills.
 - **Done when:** a full game loop works and the tiger opens the tulips at a fun rate.
 
-### Phase 4 — Sound
-- Builds on the rough ticks from Phase 2.
-- Original sound set (synthesized and/or recorded; must be original or licensed CC0).
-- Pin ticks scaled by impact speed, with voice limiting so dense clatter stays pleasant.
-- Volume and mute in Settings (the iOS audio unlock is already in place from Phase 2).
+### Phase 4 — Sound (built; waiting on the owner's ears)
+- An original sound set, all synthesised in code (nothing sampled or downloaded), and all of
+  it sounds a real machine makes:
+  - steel balls on brass pins, the rail, plastic parts, the rubber stopper and each other;
+  - the launcher's spring hammer and the ball running up the rail;
+  - a struck payout bell on every catch, three strikes for a paw or a full bonus strip, and a
+    ringing bell when the tiger opens every tulip;
+  - tulip petals snapping, won balls rattling into the tray, balls pouring in on a refill,
+    and the knock of a ball in the out hole.
+- Impact sounds follow impact speed (louder and brighter) and position (left to right), come
+  in several versions each, and are voice-limited so dense clatter stays pleasant.
+- Volume slider and mute in Settings. iPhone start-up made more robust (plays with the ringer
+  switch off; recovers after a call or a switch to another app).
+- No background ambience: a hand-flicked machine of the era is silent when nothing moves.
 - **Done when:** sound works on iPhone, iPad, Mac, and Vision Pro, and it sounds great.
 
 ### Phase 5 — Retro art & polish
