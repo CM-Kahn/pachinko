@@ -55,11 +55,13 @@ avoid any surf/beach/starfish motif (that belongs to the inspiring app).
   Dense pin fields arranged in curved rows and "gates" that steer balls toward features.
 - **The tiger (centre):** a round, friendly tiger face with four ways in. A ball in the top of
   his head (between the ears) or in the pocket under his chin **opens all the tulips**; a ball
-  in either of his raised paws **opens the two tulips on that side**. He beams for a moment
-  whenever a ball finds him.
-- **Tulips:** flower-shaped catchers. A catch flips a tulip open or shut; open tulips are much
-  easier to hit. **At least four tulips.**
-- **Windmills:** free-spinning pinwheels that balls set turning and that fling balls sideways.
+  in either of his raised paws **opens the two tulips on that side**. When a ball finds him
+  his hinged jaw drops open and the lamps behind his cheeks light for a moment.
+- **Tulips:** catchers with two rigid petals hinged on visible pivots. A catch flips a tulip
+  open or shut; open tulips are much easier to hit. **At least four tulips.**
+- **Windmills:** traditional round wheels with raised vanes, free-spinning, set turning by
+  the balls. They sit in the upper and middle board, never near the bottom.
+- **Ball size:** balls are large enough that a pocket is only a little wider than a ball.
 - **Side pockets:** plain cups.
 - **Bonus lights:** the strip across the top lights a bulb for each tulip catch; completing it
   gives a bonus.
@@ -149,6 +151,11 @@ and gives feedback before the next phase starts.
 - Wrap with a native shell on a Mac, add App Store assets. Simulated-gambling apps are rated 17+.
 
 ## 6. Ground rules for builders
+
+- **Mechanical only.** Nothing happens on the board that a physical machine could not do with
+  moving parts and lamps: no floating text, no animated drawings, no screens. Feedback comes
+  from parts that move (tulip petals on pivots, the tiger's hinged jaw, windmills), lamps that
+  light, the counters, and sound.
 
 - Original assets only. Don't copy art, sounds, layouts, or names from any existing game.
 - Keep everything free; no ads, purchases, accounts, or tracking.

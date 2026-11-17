@@ -1,10 +1,10 @@
 {
   "name": "Classic",
   "radius": 400,
-  "ballRadius": 11,
+  "ballRadius": 12.5,
   "pinRadius": 4,
   "rail": { "r": 368, "from": 106, "to": 250 },
-  "launch": { "angle": 128, "r": 387, "minSpeed": 1725, "maxSpeed": 2100 },
+  "launch": { "angle": 128, "r": 387.5, "minSpeed": 1725, "maxSpeed": 2100 },
   "bumpers": [{ "angle": 322, "r": 388, "radius": 15 }],
   "drain": { "x": 0, "y": 386, "halfWidth": 34, "halfHeight": 20 },
   "tiger": { "x": 0, "y": -62, "radius": 78, "earDx": 46, "earDy": 78, "earRadius": 24 },
@@ -12,24 +12,24 @@
   "windmills": [
     { "x": -128, "y": -262 },
     { "x": 128, "y": -262 },
-    { "x": -170, "y": 262 },
-    { "x": 170, "y": 262 }
+    { "x": -170, "y": 108 },
+    { "x": 170, "y": 108 }
   ],
   "pockets": [
     { "id": "crown", "kind": "crown", "x": 0, "y": -152, "opens": "all" },
     { "id": "chin", "kind": "chin", "x": 0, "y": 112, "halfWidth": 17, "opens": "all" },
-    { "id": "paw-left", "kind": "paw", "x": -41, "y": 31, "halfWidth": 19, "opens": ["tulip-upper-left", "tulip-lower-left"] },
-    { "id": "paw-right", "kind": "paw", "x": 41, "y": 31, "halfWidth": 19, "opens": ["tulip-upper-right", "tulip-lower-right"] },
+    { "id": "paw-left", "kind": "paw", "x": -44, "y": 35, "halfWidth": 17, "opens": ["tulip-upper-left", "tulip-lower-left"] },
+    { "id": "paw-right", "kind": "paw", "x": 44, "y": 35, "halfWidth": 17, "opens": ["tulip-upper-right", "tulip-lower-right"] },
     { "id": "tulip-upper-left", "kind": "tulip", "x": -236, "y": -40 },
     { "id": "tulip-upper-right", "kind": "tulip", "x": 236, "y": -40 },
     { "id": "tulip-lower-left", "kind": "tulip", "x": -72, "y": 196 },
     { "id": "tulip-lower-right", "kind": "tulip", "x": 72, "y": 196 },
-    { "id": "side-left", "kind": "side", "x": -262, "y": 150, "halfWidth": 19 },
-    { "id": "side-right", "kind": "side", "x": 262, "y": 150, "halfWidth": 19 }
+    { "id": "side-left", "kind": "side", "x": -262, "y": 150, "halfWidth": 17 },
+    { "id": "side-right", "kind": "side", "x": 262, "y": 150, "halfWidth": 17 }
   ],
   "pins": [
-    { "type": "line", "x1": 18, "y1": -204, "x2": 110, "y2": -150, "n": 10, "mirror": true },
-    { "type": "line", "x1": 0, "y1": -250, "x2": 28, "y2": -238, "n": 3, "mirror": true },
+    { "type": "line", "x1": 19, "y1": -204, "x2": 110, "y2": -150, "n": 10, "mirror": true },
+    { "type": "line", "x1": 0, "y1": -252, "x2": 30, "y2": -240, "n": 3, "mirror": true },
 
     { "type": "line", "x1": 62, "y1": -345, "x2": 84, "y2": -292, "n": 6, "mirror": true },
     { "type": "line", "x1": 150, "y1": -322, "x2": 190, "y2": -274, "n": 6, "mirror": true },

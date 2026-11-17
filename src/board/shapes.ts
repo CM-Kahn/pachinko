@@ -6,19 +6,25 @@ import type { Pocket, TigerSpec, Vec } from './types';
  */
 
 export const TULIP_OPEN_HALF_WIDTH = 26;
-export const TULIP_CLOSED_HALF_WIDTH = 14;
-const TULIP_BASE = 10;
+export const TULIP_CLOSED_HALF_WIDTH = 15;
+const TULIP_BASE = 11;
 const TULIP_TOP = -8;
 const TULIP_FLOOR = 18;
 
-/** The two petals and the floor of a tulip, as one open chain from left tip to right tip. */
+/**
+ * The two petals and the floor of a tulip, as one open chain from left tip to right tip.
+ * Each petal is a rigid flap hinged at the end of the floor, so it is the same length open
+ * or shut: opening only swings it outwards.
+ */
 export function tulipOutline(open: boolean): Vec[] {
   const tip = open ? TULIP_OPEN_HALF_WIDTH : TULIP_CLOSED_HALF_WIDTH;
+  const length = Math.hypot(TULIP_CLOSED_HALF_WIDTH - TULIP_BASE, TULIP_FLOOR - TULIP_TOP);
+  const top = TULIP_FLOOR - Math.sqrt(length * length - (tip - TULIP_BASE) ** 2);
   return [
-    { x: -tip, y: TULIP_TOP },
+    { x: -tip, y: top },
     { x: -TULIP_BASE, y: TULIP_FLOOR },
     { x: TULIP_BASE, y: TULIP_FLOOR },
-    { x: tip, y: TULIP_TOP },
+    { x: tip, y: top },
   ];
 }
 
@@ -43,7 +49,7 @@ export function pocketOutline(pocket: Pocket, open: boolean): Vec[] {
 export function isCaught(pocket: Pocket, dx: number, dy: number): boolean {
   switch (pocket.kind) {
     case 'tulip':
-      return Math.abs(dx) < 12 && dy > -2 && dy < 15;
+      return Math.abs(dx) < 12 && dy > -8 && dy < 15;
     case 'crown':
       return Math.abs(dx) < 12 && dy > -16 && dy < 10;
     default:
@@ -61,4 +67,4 @@ export function tigerCircles(t: TigerSpec): { x: number; y: number; r: number }[
 }
 
 /** How many blades a windmill has. */
-export const WINDMILL_BLADES = 4;
+export const WINDMILL_BLADES = 6;

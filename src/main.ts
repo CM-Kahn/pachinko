@@ -99,13 +99,9 @@ async function start(): Promise<void> {
       sim?.setOpen(id, open);
       sound.snap(open);
     },
-    onWin: (pocket, balls) => {
-      boardView.popup(pocket, balls);
-      sound.win();
-    },
+    onWin: () => sound.win(),
     onTiger: (_pocket, tulips) => {
       const all = tulips >= board.pockets.filter((p) => p.kind === 'tulip').length;
-      boardView.announce(all ? 'ALL OPEN!' : 'OPEN!');
       if (all) sound.cheer();
       else sound.fanfare();
     },
@@ -216,7 +212,7 @@ async function start(): Promise<void> {
 
     cabinet.launcher.update(dt);
     boardView.sync(world.balls);
-    boardView.update(dt, machine, world.windmills);
+    boardView.update(machine, world.windmills);
     // The bonus strip blinks all its bulbs while it celebrates.
     cabinet.showLights(machine.bonusFlash > 0 ? (Math.floor(machine.bonusFlash * 6) % 2 === 0 ? 9 : 0) : machine.lights);
     cabinet.show(state);
