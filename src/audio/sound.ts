@@ -1,51 +1,78 @@
 import type { HitKind } from '../physics/sim';
+import {
+  VARIANTS,
+  VoiceGate,
+  ballClick,
+  bell,
+  drainDrop,
+  hammer,
+  impactForce,
+  impactGain,
+  pinTick,
+  plasticTock,
+  railRun,
+  railTap,
+  rubberThud,
+  snap,
+  trayChink,
+} from './synth';
 
 /**
- * First-pass sound: everything is synthesised here, nothing is sampled or downloaded.
- * The full sound set arrives in Phase 4; this is enough to tune the physics by ear.
+ * The machine's sound. Everything heard is something a real machine would make: steel balls
+ * on brass pins, the launcher's hammer, plastic petals snapping, a struck bell, and won
+ * balls rattling into the tray. The sounds themselves are built in synth.ts.
  */
-
-/** Dense clatter stays pleasant if ticks can't pile up closer together than this. */
-const MIN_TICK_GAP = 0.014;
-/** Impacts slower than this (board units/s) are silent. */
-const QUIET_SPEED = 60;
-const LOUD_SPEED = 1500;
 
 type AudioCtor = typeof AudioContext;
 
-function render(ctx: AudioContext, seconds: number, fn: (t: number, i: number) => number): AudioBuffer {
-  const n = Math.max(1, Math.floor(seconds * ctx.sampleRate));
-  const buffer = ctx.createBuffer(1, n, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < n; i++) data[i] = fn(i / ctx.sampleRate, i);
-  return buffer;
+interface Bank {
+  pins: AudioBuffer[];
+  balls: AudioBuffer[];
+  rails: AudioBuffer[];
+  plastic: AudioBuffer[];
+  tray: AudioBuffer[];
+  rubber: AudioBuffer;
+  bell: AudioBuffer;
+  snapOpen: AudioBuffer;
+  snapShut: AudioBuffer;
+  hammer: AudioBuffer;
+  railRun: AudioBuffer;
+  drain: AudioBuffer;
 }
 
-/** A struck-metal ping: a few inharmonic partials with a fast decay and a click on the front. */
-function ping(ctx: AudioContext, partials: number[], decay: number, click: number): AudioBuffer {
-  let seed = 12345 + Math.round(partials[0] ?? 0);
-  const noise = (): number => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
-  return render(ctx, decay * 7, (t) => {
-    let s = 0;
-    partials.forEach((f, k) => {
-      s += (Math.sin(2 * Math.PI * f * t) * Math.exp(-t / (decay / (1 + k * 0.6)))) / (1 + k);
-    });
-    s += noise() * click * Math.exp(-t / 0.0015);
-    return s * 0.6;
-  });
+/** Half a second of silence as a WAV file, for waking iPhone audio (see `unlock`). */
+function silentWavUrl(): string {
+  const samples = 4000;
+  const bytes = new Uint8Array(44 + samples).fill(0x80);
+  const view = new DataView(bytes.buffer);
+  const text = (at: number, s: string): void => [...s].forEach((c, i) => view.setUint8(at + i, c.charCodeAt(0)));
+  text(0, 'RIFF');
+  view.setUint32(4, 36 + samples, true);
+  text(8, 'WAVEfmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, 8000, true);
+  view.setUint32(28, 8000, true);
+  view.setUint16(32, 1, true);
+  view.setUint16(34, 8, true);
+  text(36, 'data');
+  view.setUint32(40, samples, true);
+  return URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
 }
+
+/** Half the board's width in board units, for placing sounds left to right. */
+const BOARD_HALF_WIDTH = 400;
 
 export class Sound {
   private ctx: AudioContext | null = null;
   private out: GainNode | null = null;
-  private pins: AudioBuffer[] = [];
-  private wall: AudioBuffer | null = null;
-  private thunk: AudioBuffer | null = null;
-  private drop: AudioBuffer | null = null;
-  private bell: AudioBuffer | null = null;
+  private bank: Bank | null = null;
+  private readonly gate = new VoiceGate();
   private lastCoin = 0;
-  private lastTick = 0;
+  private silentTag: HTMLAudioElement | null = null;
   private _muted = false;
+  private _volume = 0.8;
 
   get muted(): boolean {
     return this._muted;
@@ -53,23 +80,54 @@ export class Sound {
 
   set muted(value: boolean) {
     this._muted = value;
-    if (this.out && this.ctx) this.out.gain.setTargetAtTime(value ? 0 : 1, this.ctx.currentTime, 0.02);
+    this.applyLevel();
+  }
+
+  /** Overall loudness, 0 to 1. */
+  get volume(): number {
+    return this._volume;
+  }
+
+  set volume(value: number) {
+    this._volume = Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0.8));
+    this.applyLevel();
+  }
+
+  private applyLevel(): void {
+    if (!this.out || !this.ctx) return;
+    // Loudness is heard on a curve, so the slider's middle should sound like half.
+    const level = this._muted ? 0 : this._volume * this._volume;
+    this.out.gain.setTargetAtTime(level, this.ctx.currentTime, 0.02);
   }
 
   /**
-   * Browsers (iOS Safari above all) keep audio locked until the player touches the page.
+   * Browsers (iPhone Safari above all) keep audio locked until the player touches the page.
    * Call this from every touch, click and key press; it is cheap once sound is running.
    */
   unlock(): void {
     if (!this.ctx) {
       // On iPhone, ordinary web audio obeys the silent switch. Asking for a "playback"
       // session (Safari 16.4 and later) makes game sound play regardless, like a native game.
+      let session: { type: string } | undefined;
       try {
-        const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+        session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
         if (session) session.type = 'playback';
       } catch {
-        // Not supported here; sound then follows the silent switch.
+        session = undefined;
       }
+      // Older iPhones have no such setting. There, playing a silent sound through an ordinary
+      // audio element has the same effect.
+      if (!session && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
+        try {
+          const tag = new Audio(silentWavUrl());
+          tag.loop = true;
+          tag.setAttribute('playsinline', '');
+          this.silentTag = tag;
+        } catch {
+          this.silentTag = null;
+        }
+      }
+
       const Ctor: AudioCtor | undefined =
         window.AudioContext ?? (window as unknown as { webkitAudioContext?: AudioCtor }).webkitAudioContext;
       if (!Ctor) return;
@@ -81,122 +139,197 @@ export class Sound {
       this.build(this.ctx);
     }
     const ctx = this.ctx;
+    if (this.silentTag?.paused) void this.silentTag.play().catch(() => undefined);
+    // "running" is the only state in which sound comes out; iPhones also report
+    // "interrupted" after a call or a trip to another app.
     if (ctx.state !== 'running') {
       void ctx.resume().catch(() => undefined);
-      // iOS only treats the context as unlocked once a sound has started inside the gesture.
-      const src = ctx.createBufferSource();
-      src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
-      src.connect(ctx.destination);
-      src.start();
+      // iPhones only treat the context as unlocked once a sound has started inside the gesture.
+      try {
+        const src = ctx.createBufferSource();
+        src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+        src.connect(ctx.destination);
+        src.start();
+      } catch {
+        // Nothing to do; the next touch tries again.
+      }
     }
+  }
+
+  /** True once sound can actually be heard (for tests and troubleshooting). */
+  get running(): boolean {
+    return this.ctx?.state === 'running';
   }
 
   private build(ctx: AudioContext): void {
+    // A gentle limiter so a burst of impacts never distorts.
     const squash = ctx.createDynamicsCompressor();
-    squash.threshold.value = -16;
-    squash.ratio.value = 5;
+    squash.threshold.value = -14;
+    squash.knee.value = 10;
+    squash.ratio.value = 6;
     squash.attack.value = 0.002;
-    squash.release.value = 0.08;
+    squash.release.value = 0.09;
     squash.connect(ctx.destination);
     this.out = ctx.createGain();
-    this.out.gain.value = this._muted ? 0 : 1;
+    this.out.gain.value = this._muted ? 0 : this._volume * this._volume;
     this.out.connect(squash);
 
-    this.pins = [
-      ping(ctx, [3300, 5450, 8100], 0.011, 0.5),
-      ping(ctx, [3720, 6010, 8800], 0.01, 0.5),
-      ping(ctx, [2950, 4900, 7600], 0.012, 0.45),
-      ping(ctx, [4100, 6700, 9400], 0.009, 0.55),
-    ];
-    this.wall = ping(ctx, [820, 1730, 2900], 0.016, 0.7);
-    this.thunk = render(ctx, 0.14, (t) => {
-      const f = 150 * Math.exp(-t / 0.05) + 55;
-      const body = Math.sin(2 * Math.PI * f * t) * Math.exp(-t / 0.04);
-      const snap = Math.sin(2 * Math.PI * 2100 * t) * Math.exp(-t / 0.004) * 0.35;
-      return (body + snap) * 0.9;
-    });
-    this.bell = ping(ctx, [1320, 2640, 3990], 0.09, 0.15);
-    this.drop = render(ctx, 0.09, (t) => Math.sin(2 * Math.PI * (240 - 900 * t) * t) * Math.exp(-t / 0.022) * 0.5);
+    const sr = ctx.sampleRate;
+    const buffer = (data: Float32Array): AudioBuffer => {
+      const b = ctx.createBuffer(1, data.length, sr);
+      b.getChannelData(0).set(data);
+      return b;
+    };
+    const many = (count: number, make: (sr: number, variant: number) => Float32Array): AudioBuffer[] =>
+      Array.from({ length: count }, (_, i) => buffer(make(sr, i)));
+    this.bank = {
+      pins: many(VARIANTS.pin, pinTick),
+      balls: many(VARIANTS.ball, ballClick),
+      rails: many(VARIANTS.rail, railTap),
+      plastic: many(VARIANTS.plastic, plasticTock),
+      tray: many(VARIANTS.tray, trayChink),
+      rubber: buffer(rubberThud(sr)),
+      bell: buffer(bell(sr)),
+      snapOpen: buffer(snap(sr, true)),
+      snapShut: buffer(snap(sr, false)),
+      hammer: buffer(hammer(sr)),
+      railRun: buffer(railRun(sr)),
+      drain: buffer(drainDrop(sr)),
+    };
   }
 
-  private play(buffer: AudioBuffer | null | undefined, volume: number, rate: number, delay = 0): void {
+  private get ready(): boolean {
+    return !!this.ctx && !!this.out && !!this.bank && !this._muted && this.ctx.state === 'running';
+  }
+
+  /**
+   * Play one sound. `pan` runs from -1 (left) to 1 (right); `brightness`, when given, dulls
+   * the sound for soft impacts (0) and leaves it full for hard ones (1).
+   */
+  private play(buffer: AudioBuffer, volume: number, rate = 1, options: { pan?: number; delay?: number; brightness?: number } = {}): void {
     const ctx = this.ctx;
-    if (!ctx || !this.out || !buffer || this._muted || ctx.state !== 'running' || volume <= 0.002) return;
+    if (!ctx || !this.out || !this.ready || volume <= 0.002) return;
     const src = ctx.createBufferSource();
     src.buffer = buffer;
     src.playbackRate.value = rate;
+    let node: AudioNode = src;
+    if (options.brightness !== undefined) {
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 2600 + options.brightness * 15000;
+      filter.Q.value = 0.4;
+      node = node.connect(filter);
+    }
     const gain = ctx.createGain();
     gain.gain.value = volume;
-    src.connect(gain).connect(this.out);
-    src.start(ctx.currentTime + delay);
+    node = node.connect(gain);
+    if (options.pan !== undefined && typeof ctx.createStereoPanner === 'function') {
+      const panner = ctx.createStereoPanner();
+      panner.pan.value = Math.min(1, Math.max(-1, options.pan));
+      node = node.connect(panner);
+    }
+    node.connect(this.out);
+    src.start(ctx.currentTime + (options.delay ?? 0));
   }
 
-  /** A ball hit something at `speed` board units per second. */
-  hit(kind: HitKind, speed: number): void {
-    const ctx = this.ctx;
-    if (!ctx || speed < QUIET_SPEED) return;
-    const now = ctx.currentTime;
-    if (now - this.lastTick < MIN_TICK_GAP) return;
-    this.lastTick = now;
+  private pick(list: AudioBuffer[]): AudioBuffer {
+    return list[Math.floor(Math.random() * list.length)]!;
+  }
 
-    const force = Math.min(1, (speed - QUIET_SPEED) / (LOUD_SPEED - QUIET_SPEED));
-    const loud = 0.08 + 0.75 * Math.pow(force, 1.4);
-    // Harder hits ring a little brighter; random detune keeps a stream from sounding like a machine gun.
-    const rate = 0.9 + force * 0.22 + Math.random() * 0.14;
+  /** A ball hit something at `speed` board units per second, at board position `x`. */
+  hit(kind: HitKind, speed: number, x = 0): void {
+    const ctx = this.ctx;
+    const bank = this.bank;
+    if (!ctx || !bank || !this.ready) return;
+    const loud = impactGain(speed);
+    if (loud <= 0) return;
+    const force = impactForce(speed);
+    const pan = (x / BOARD_HALF_WIDTH) * 0.7;
+    // Harder hits ring a little higher; a random detune keeps a stream from sounding stamped out.
+    const rate = 0.94 + force * 0.1 + Math.random() * 0.12;
+
     switch (kind) {
       case 'pin':
-        this.play(this.pins[Math.floor(Math.random() * this.pins.length)], loud, rate);
+        if (this.gate.admit(ctx.currentTime, loud, 0.05)) this.play(this.pick(bank.pins), loud * 0.8, rate, { pan, brightness: 0.25 + force * 0.75 });
         break;
       case 'ball':
-        this.play(this.pins[0], loud * 0.5, rate * 1.25);
-        break;
-      case 'cup':
-        this.play(this.wall, loud * 0.5, rate * 1.3);
+        if (this.gate.admit(ctx.currentTime, loud * 0.7, 0.02)) this.play(this.pick(bank.balls), loud * 0.5, rate, { pan });
         break;
       case 'bumper':
-        this.play(this.wall, loud * 0.9, rate * 0.55);
+        if (this.gate.admit(ctx.currentTime, loud, 0.08)) this.play(bank.rubber, loud * 0.9, rate, { pan });
+        break;
+      case 'cup':
+        if (this.gate.admit(ctx.currentTime, loud * 0.8, 0.03)) this.play(this.pick(bank.plastic), loud * 0.6, rate, { pan });
         break;
       default:
-        this.play(this.wall, loud * 0.55, rate);
+        if (this.gate.admit(ctx.currentTime, loud * 0.8, 0.06)) this.play(this.pick(bank.rails), loud * 0.55, rate, { pan, brightness: 0.3 + force * 0.7 });
     }
   }
 
-  /** The handle snapped forward and fired a ball. */
+  /** The handle snapped forward: the hammer strikes and the ball runs up the rail. */
   launch(power: number): void {
-    this.play(this.thunk, 0.45 + power * 0.35, 0.92 + power * 0.2);
+    const bank = this.bank;
+    if (!bank) return;
+    this.play(bank.hammer, 0.5 + power * 0.4, 0.94 + power * 0.14, { pan: 0.45 });
+    this.play(bank.railRun, 0.1 + power * 0.22, 0.85 + power * 0.4, { pan: -0.5, delay: 0.02 });
   }
 
   /** A ball dropped into the out hole. */
   drain(): void {
-    this.play(this.drop, 0.3, 0.95 + Math.random() * 0.1);
+    if (this.bank) this.play(this.bank.drain, 0.32, 0.94 + Math.random() * 0.12);
   }
 
-  /** A ball was caught and the machine pays. */
-  win(): void {
-    this.play(this.bell, 0.4, 1);
-    this.play(this.bell, 0.3, 1.5, 0.07);
+  /** A ball was caught: it knocks into the pocket and the payout bell is struck. */
+  win(x = 0): void {
+    const bank = this.bank;
+    if (!bank) return;
+    const pan = (x / BOARD_HALF_WIDTH) * 0.7;
+    this.play(this.pick(bank.plastic), 0.5, 0.8, { pan });
+    this.play(bank.bell, 0.42, 1, { pan: pan * 0.4, delay: 0.03 });
   }
 
   /** One won ball dropped into the tray. */
   coin(): void {
     const ctx = this.ctx;
-    if (!ctx || ctx.currentTime - this.lastCoin < 0.05) return;
+    const bank = this.bank;
+    if (!ctx || !bank || ctx.currentTime - this.lastCoin < 0.028) return;
     this.lastCoin = ctx.currentTime;
-    this.play(this.pins[1], 0.12, 1.5 + Math.random() * 0.2);
+    this.play(this.pick(bank.tray), 0.2 + Math.random() * 0.12, 0.9 + Math.random() * 0.25, { pan: -0.35 + Math.random() * 0.3 });
   }
 
-  /** The tiger opened every tulip. */
+  /** A tray of balls poured in (the free refill). */
+  pour(): void {
+    const bank = this.bank;
+    if (!bank) return;
+    for (let i = 0; i < 46; i++) {
+      const t = (i / 46) * 0.9 + Math.random() * 0.03;
+      // Thick at first, thinning out as the last balls settle.
+      const level = 0.3 * (1 - (i / 46) * 0.6);
+      this.play(this.pick(bank.tray), level * (0.7 + Math.random() * 0.5), 0.85 + Math.random() * 0.35, { pan: -0.4 + Math.random() * 0.5, delay: t });
+    }
+  }
+
+  /** A tulip's petals snapped open or shut. */
+  snap(open: boolean, x = 0): void {
+    const bank = this.bank;
+    if (!bank) return;
+    this.play(open ? bank.snapOpen : bank.snapShut, 0.5, 0.95 + Math.random() * 0.1, { pan: (x / BOARD_HALF_WIDTH) * 0.7 });
+  }
+
+  /** The tiger opened every tulip: the bell rings and rings, as an electric bell does. */
   cheer(): void {
-    [1, 1.26, 1.5, 2, 1.5, 2, 2.52].forEach((rate, i) => this.play(this.bell, 0.5, rate, i * 0.11));
+    const bank = this.bank;
+    if (!bank) return;
+    const strikes = 16;
+    for (let i = 0; i < strikes; i++) {
+      this.play(bank.bell, 0.34 * (i === 0 ? 1.2 : 0.75 + Math.random() * 0.25), 1, { delay: 0.05 + i * 0.062 });
+    }
   }
 
-  /** A tulip snapped open or shut. */
-  snap(open: boolean): void {
-    this.play(this.wall, 0.3, open ? 1.6 : 1.1);
-  }
-
-  /** The bonus strip filled up, or a paw opened two tulips. */
+  /** A smaller celebration (a paw, or the bonus strip filling): the bell is struck three times. */
   fanfare(): void {
-    [1, 1.5, 2].forEach((rate, i) => this.play(this.bell, 0.4, rate, i * 0.09));
+    const bank = this.bank;
+    if (!bank) return;
+    for (let i = 0; i < 3; i++) this.play(bank.bell, 0.4, 1, { delay: 0.05 + i * 0.13 });
   }
 }

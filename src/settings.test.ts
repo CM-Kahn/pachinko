@@ -15,8 +15,8 @@ describe('settings', () => {
 
   it('remembers what was saved', () => {
     const store = memoryStore();
-    saveSettings({ soundOn: false, luck: 0.4, payout: 25 }, store);
-    expect(loadSettings(store)).toEqual({ soundOn: false, luck: 0.4, payout: 25 });
+    saveSettings({ soundOn: false, volume: 0.3, luck: 0.4, payout: 25 }, store);
+    expect(loadSettings(store)).toEqual({ soundOn: false, volume: 0.3, luck: 0.4, payout: 25 });
   });
 
   it('survives damaged or strange saved data', () => {
@@ -25,6 +25,9 @@ describe('settings', () => {
     expect(parseSettings('{"soundOn":"yes","luck":"lots"}')).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('{"luck":99}').luck).toBe(1);
     expect(parseSettings('{"luck":-99}').luck).toBe(-1);
+    expect(parseSettings('{"volume":5}').volume).toBe(1);
+    expect(parseSettings('{"volume":"loud"}').volume).toBe(DEFAULT_SETTINGS.volume);
+    expect(parseSettings('{"volume":0}').volume).toBe(0);
     expect(parseSettings('{"payout":7}').payout).toBe(DEFAULT_SETTINGS.payout);
     expect(parseSettings('{"payout":10}').payout).toBe(10);
   });
@@ -39,7 +42,7 @@ describe('settings', () => {
       },
     };
     expect(loadSettings(broken)).toEqual(DEFAULT_SETTINGS);
-    expect(() => saveSettings({ soundOn: true, luck: 1, payout: 5 }, broken)).not.toThrow();
+    expect(() => saveSettings({ soundOn: true, volume: 1, luck: 1, payout: 5 }, broken)).not.toThrow();
   });
 
   it('keeps luck in range and snaps to the default near the middle', () => {

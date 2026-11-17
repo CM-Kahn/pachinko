@@ -8,6 +8,8 @@ const CARD = { x: 90, y: 260, w: 720, h: 740 } as const;
 /** The luck slider's track, in cabinet design units. */
 export const LUCK_TRACK = { x0: CARD.x + 100, x1: CARD.x + CARD.w - 100, y: CARD.y + 370 } as const;
 export const SOUND_SWITCH = { x: CARD.x + CARD.w - 250, y: CARD.y + 128, w: 170, h: 72 } as const;
+/** The volume slider's track, between the Sound label and its switch. */
+export const VOLUME_TRACK = { x0: CARD.x + 250, x1: CARD.x + 420, y: CARD.y + 164 } as const;
 export const DONE_BUTTON = { x: CARD.x + CARD.w / 2 - 130, y: CARD.y + 626, w: 260, h: 72 } as const;
 /** One button per payout choice, left to right. */
 export const PAYOUT_BUTTONS = PAYOUTS.map((value, i) => ({ value, x: CARD.x + 300 + i * 120, y: CARD.y + 506, w: 104, h: 72 }));
@@ -25,6 +27,9 @@ export class SettingsPanel extends Container {
   private readonly payoutFaces = new Graphics();
   private readonly payoutTexts: Text[] = [];
   private dragging: number | null = null;
+  private readonly volumeKnob = new Graphics();
+  private readonly volumeFill = new Graphics();
+  private volumeDragging: number | null = null;
 
   constructor(
     private readonly settings: Settings,
@@ -72,6 +77,36 @@ export class SettingsPanel extends Container {
       this.changed();
     });
     this.addChild(sound, this.switchFace, this.switchText);
+
+    // Volume: a short slider between the label and the switch.
+    const v = VOLUME_TRACK;
+    const volumeTrack = new Graphics()
+      .roundRect(v.x0 - 8, v.y - 8, v.x1 - v.x0 + 16, 16, 8)
+      .fill(0x3b332b)
+      .roundRect(v.x0 - 5, v.y - 5, v.x1 - v.x0 + 10, 10, 5)
+      .fill(0x6c6152);
+    volumeTrack.eventMode = 'static';
+    volumeTrack.cursor = 'pointer';
+    volumeTrack.hitArea = new Rectangle(v.x0 - 30, v.y - 44, v.x1 - v.x0 + 60, 88);
+    const setVolume = (e: FederatedPointerEvent): void => {
+      const x = this.toLocal(e.global).x;
+      this.settings.volume = Math.min(1, Math.max(0, (x - v.x0) / (v.x1 - v.x0)));
+      this.changed();
+    };
+    volumeTrack.on('pointerdown', (e: FederatedPointerEvent) => {
+      this.volumeDragging = e.pointerId;
+      setVolume(e);
+    });
+    volumeTrack.on('globalpointermove', (e: FederatedPointerEvent) => {
+      if (e.pointerId === this.volumeDragging) setVolume(e);
+    });
+    const volumeEnd = (e: FederatedPointerEvent): void => {
+      if (e.pointerId === this.volumeDragging) this.volumeDragging = null;
+    };
+    volumeTrack.on('pointerup', volumeEnd);
+    volumeTrack.on('pointerupoutside', volumeEnd);
+    volumeTrack.on('pointercancel', volumeEnd);
+    this.addChild(volumeTrack, this.volumeFill, this.volumeKnob);
 
     // Luck.
     const luck = label('LUCK', 32);
@@ -178,6 +213,7 @@ export class SettingsPanel extends Container {
     if (!this.visible) return;
     this.visible = false;
     this.dragging = null;
+    this.volumeDragging = null;
     this.onClose();
   }
 
@@ -211,6 +247,21 @@ export class SettingsPanel extends Container {
     this.switchText.text = on ? 'ON' : 'OFF';
     this.switchText.style.fill = COLORS.cream;
     this.switchText.position.set(on ? s.x + (s.w - s.h) / 2 + 12 : s.x + s.h + (s.w - s.h) / 2 - 12, s.y + s.h / 2);
+
+    const v = VOLUME_TRACK;
+    const vx = v.x0 + this.settings.volume * (v.x1 - v.x0);
+    this.volumeFill.clear();
+    if (vx - v.x0 > 1) this.volumeFill.roundRect(v.x0 - 5, v.y - 5, vx - v.x0 + 5, 10, 5).fill(on ? COLORS.teal : 0x8a7d66);
+    this.volumeKnob
+      .clear()
+      .circle(vx, v.y + 3, 21)
+      .fill({ color: 0x000000, alpha: 0.3 })
+      .circle(vx, v.y, 20)
+      .fill(chrome(false))
+      .circle(vx, v.y, 20)
+      .stroke({ width: 2, color: 0x30363a, alpha: 0.8 })
+      .circle(vx, v.y, 8)
+      .fill(on ? COLORS.teal : 0x8a7d66);
 
     this.payoutFaces.clear();
     PAYOUT_BUTTONS.forEach((b, i) => {
