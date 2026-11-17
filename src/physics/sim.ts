@@ -1,6 +1,6 @@
 import type { Collider, RigidBody, World, EventQueue } from '@dimforge/rapier2d-compat';
 import { angleOf } from '../board/loader';
-import { isCaught, pocketOutline } from '../board/shapes';
+import { WINDMILL_BLADES, gatePins, isCaught, pocketOutline, tigerCircles } from '../board/shapes';
 import type { Board, Pocket } from '../board/types';
 import { FIXED_DT, type Rapier } from './world';
 
@@ -24,13 +24,9 @@ export const TUNING = {
   stuckSpeed: 14,
   stuckAfter: 0.6,
   maxBalls: 160,
-  /**
-   * The luck setting leans balls that are just above a catcher towards it (or away from it).
-   * This is the sideways pull at full luck, in board units per second squared.
-   */
-  luckPull: 1500,
-  luckReachX: 85,
-  luckReachY: 120,
+  /** Windmills spin freely; this is how quickly they coast to a stop. */
+  windmillDamping: 1.2,
+  windmillDensity: 0.5,
 } as const;
 
 export type HitKind = 'pin' | 'wall' | 'rail' | 'bumper' | 'ball' | 'cup';
@@ -53,7 +49,7 @@ export interface SimEvents {
   onHit?(kind: HitKind, speed: number, x: number, y: number): void;
   /** A ball left the board through the out hole. */
   onDrain?(ball: Ball): void;
-  /** A ball was caught by a pocket, tulip or the attacker. */
+  /** A ball was caught by a pocket, a tulip or the tiger. */
   onCatch?(pocket: Pocket, ball: Ball): void;
 }
 
@@ -73,9 +69,12 @@ export class Simulation {
   private readonly kinds = new Map<number, HitKind>();
   private readonly byCollider = new Map<number, Ball>();
   private readonly pockets: PocketState[] = [];
+  private readonly mills: RigidBody[] = [];
+  /** Where each windmill is and how far it has turned (radians), for drawing. */
+  readonly windmills: { x: number; y: number; rotation: number }[] = [];
+  private readonly gateColliders: Collider[] = [];
   private nextId = 1;
-  /** The luck setting, -1 (harder) to +1 (easier). */
-  luck = 0;
+  private _luck = 0;
 
   constructor(
     private readonly R: Rapier,
@@ -126,14 +125,48 @@ export class Simulation {
       );
     }
 
-    const d = board.display;
-    add(
-      R.ColliderDesc.roundCuboid((d.halfWidth - 8) / SCALE, (d.halfHeight - 8) / SCALE, 8 / SCALE)
-        .setTranslation(d.x / SCALE, d.y / SCALE)
-        .setRestitution(0.3)
-        .setFriction(TUNING.wallFriction),
-      'cup',
-    );
+    for (const gate of board.gates) {
+      for (const p of gatePins(gate, 0)) {
+        const collider = this.world.createCollider(
+          R.ColliderDesc.ball(board.pinRadius / SCALE)
+            .setTranslation(p.x / SCALE, p.y / SCALE)
+            .setRestitution(TUNING.pinRestitution)
+            .setFriction(TUNING.ballFriction),
+          fixed,
+        );
+        this.kinds.set(collider.handle, 'pin');
+        this.gateColliders.push(collider);
+      }
+    }
+
+    for (const c of tigerCircles(board.tiger)) {
+      add(R.ColliderDesc.ball(c.r / SCALE).setTranslation(c.x / SCALE, c.y / SCALE).setRestitution(0.3).setFriction(TUNING.wallFriction), 'cup');
+    }
+
+    // A windmill is a body that can only turn; balls striking its blades spin it.
+    for (const w of board.windmills) {
+      const body = this.world.createRigidBody(
+        R.RigidBodyDesc.dynamic()
+          .setTranslation(w.x / SCALE, w.y / SCALE)
+          .lockTranslations()
+          .setGravityScale(0)
+          .setAngularDamping(TUNING.windmillDamping)
+          .setCanSleep(false),
+      );
+      const reach = board.windmillRadius / SCALE;
+      for (let k = 0; k < WINDMILL_BLADES; k++) {
+        const a = (k / WINDMILL_BLADES) * Math.PI * 2;
+        const blade = R.ColliderDesc.cuboid(reach / 2, 2.5 / SCALE)
+          .setTranslation((Math.cos(a) * reach) / 2, (Math.sin(a) * reach) / 2)
+          .setRotation(a)
+          .setDensity(TUNING.windmillDensity)
+          .setRestitution(0.3)
+          .setFriction(0.2);
+        this.kinds.set(this.world.createCollider(blade, body).handle, 'cup');
+      }
+      this.mills.push(body);
+      this.windmills.push({ x: w.x, y: w.y, rotation: 0 });
+    }
 
     for (const pocket of board.pockets) {
       const walls = (open: boolean): Collider | null => {
@@ -150,7 +183,30 @@ export class Simulation {
     }
   }
 
-  /** Open or close a tulip or the attacker. */
+  /** The luck setting, -1 (harder) to +1 (easier). */
+  get luck(): number {
+    return this._luck;
+  }
+
+  /**
+   * Luck is set the way a parlour sets it: by moving the pins. Each gate's two pins are
+   * spread apart to let more balls reach the catcher below, or closed up to turn them away.
+   */
+  set luck(value: number) {
+    this._luck = Math.min(1, Math.max(-1, Number.isFinite(value) ? value : 0));
+    this.board.gates.forEach((gate, i) => {
+      gatePins(gate, this._luck).forEach((p, k) => {
+        this.gateColliders[i * 2 + k]?.setTranslationWrtParent({ x: p.x / SCALE, y: p.y / SCALE });
+      });
+    });
+  }
+
+  /** Where the adjustable gate pins are right now, for drawing. */
+  gatePinPositions(): { x: number; y: number }[] {
+    return this.board.gates.flatMap((gate) => gatePins(gate, this._luck));
+  }
+
+  /** Open or close a tulip. */
   setOpen(id: string, open: boolean): void {
     const state = this.pockets.find((p) => p.pocket.id === id);
     if (!state || state.open === open) return;
@@ -290,6 +346,8 @@ export class Simulation {
       events.onHit(kind, Math.hypot(v.x, v.y) * SCALE, p.x * SCALE, p.y * SCALE);
     });
 
+    this.mills.forEach((body, i) => (this.windmills[i]!.rotation = body.rotation()));
+
     const { drain, radius } = this.board;
     for (let i = this.balls.length - 1; i >= 0; i--) {
       const ball = this.balls[i]!;
@@ -320,15 +378,9 @@ export class Simulation {
         const { pocket } = state;
         const dx = ball.x - pocket.x;
         const dy = ball.y - pocket.y;
-        if (isCaught(pocket, state.open, dx, dy)) {
+        if (isCaught(pocket, dx, dy)) {
           caught = pocket;
           break;
-        }
-        // Luck: a ball falling just above a catcher is leaned towards it, or away from it.
-        if (this.luck !== 0 && pocket.kind !== 'attacker' && dy < 0 && dy > -TUNING.luckReachY && Math.abs(dx) < TUNING.luckReachX) {
-          // The start pocket is leaned on less, so even an unlucky machine still spins its reels.
-          const lean = -Math.sign(dx) * Math.min(1, Math.abs(dx) / 12) * (pocket.kind === 'start' ? 0.35 : 1);
-          body.applyImpulse({ x: (this.luck * lean * TUNING.luckPull * body.mass() * FIXED_DT) / SCALE, y: 0 }, true);
         }
       }
       if (caught) {

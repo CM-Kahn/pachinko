@@ -1,177 +1,299 @@
-import { Container, FillGradient, Graphics, Sprite, Text, type Renderer, type Texture } from 'pixi.js';
-import { pocketOutline } from '../board/shapes';
+import { Container, FillGradient, Graphics, Sprite, type Renderer, type Texture } from 'pixi.js';
+import { WINDMILL_BLADES, pocketOutline, tigerCircles } from '../board/shapes';
 import type { Board, Pocket } from '../board/types';
 import type { Machine } from '../game/machine';
 import type { Ball } from '../physics/sim';
-import { COLORS, FONT_STACK } from '../theme';
+import { COLORS } from '../theme';
 import { chrome, seeded } from './draw';
 
-/** Draws a board (in board units, origin at the playfield centre) and the balls on it. */
+const INK = 0x3a2416;
+const TIGER = { fur: 0xf4a23c, furShade: 0xd9822a, cream: 0xfff1d6, nose: 0xf07f86, blush: 0xf59a84, mouth: 0x8c2f2a, tongue: 0xf59aa0 };
+const TULIP = { petal: 0xe9574a, rib: 0xf79a86, inside: 0x2a1410, line: 0x7a231c, housing: 0xf3ead2 };
+
 export class BoardView extends Container {
   private readonly ballLayer = new Container();
   private readonly sprites: Sprite[] = [];
   private ballTexture: Texture | null = null;
   private readonly catchers = new Graphics();
-  private readonly screenGlow = new Graphics();
-  private readonly reelTexts: Text[] = [];
-  private readonly status: Text;
-  private readonly spinLamps = new Graphics();
-  private readonly popups: { text: Text; age: number }[] = [];
-  private readonly popupLayer = new Container();
+  private readonly tigerFace = new Graphics();
+  /** The pins the luck setting moves. */
+  private readonly gatePins = new Graphics();
+  private gateKey = '';
+  private readonly mills: Graphics[] = [];
   private catcherKey = '';
-  private lampKey = '';
-  private clock = 0;
+  private faceKey = '';
 
   constructor(
     private readonly board: Board,
     private readonly renderer: Renderer,
   ) {
     super();
-    this.status = new Text({ text: '', style: { fontFamily: FONT_STACK, fontSize: 17, fontWeight: '800', fill: COLORS.mustard, letterSpacing: 3 } });
     this.addChild(
       this.buildFace(),
       this.buildFlowers(),
       this.buildOutHole(),
       this.buildRails(),
-      this.buildDisplay(),
+      this.buildTiger(),
       this.catchers,
+      this.buildWindmills(),
       this.buildPins(),
+      this.gatePins,
       this.ballLayer,
-      this.popupLayer,
       this.buildGlass(),
     );
   }
 
-  /** The centre display: three reel windows, a status line and lamps for spins waiting. */
-  private buildDisplay(): Container {
-    const d = this.board.display;
+  /**
+   * The tiger in the middle of the board: a moulded face. His jaw and cheek lamps are drawn
+   * separately because they move and light, as they would on a real machine.
+   */
+  private buildTiger(): Container {
+    const t = this.board.tiger;
+    const [head, earL, earR] = tigerCircles(t) as [{ x: number; y: number; r: number }, { x: number; y: number; r: number }, { x: number; y: number; r: number }];
     const c = new Container();
-    c.position.set(d.x, d.y);
-    const w = d.halfWidth;
-    const h = d.halfHeight;
-    c.addChild(
-      new Graphics()
-        .roundRect(-w + 2, -h + 5, w * 2, h * 2, 12)
-        .fill({ color: 0x000000, alpha: 0.25 })
-        .roundRect(-w, -h, w * 2, h * 2, 12)
-        .fill(chrome())
-        .roundRect(-w + 5, -h + 5, w * 2 - 10, h * 2 - 10, 8)
-        .fill(COLORS.tealDeep),
-      this.screenGlow,
-    );
-    const reels = new Graphics();
-    for (let i = 0; i < 3; i++) {
-      const x = (i - 1) * 58;
-      reels.roundRect(x - 26, -30, 52, 72, 6).fill(COLORS.brass).roundRect(x - 23, -27, 46, 66, 4).fill(COLORS.ledWindow);
-      const t = new Text({ text: '7', style: { fontFamily: FONT_STACK, fontSize: 58, fontWeight: '800', fill: COLORS.ledOn } });
-      t.anchor.set(0.5);
-      t.position.set(x, 6);
-      this.reelTexts.push(t);
+    const g = new Graphics();
+    const r = head.r;
+
+    // Soft shadow on the board.
+    g.circle(head.x + 3, head.y + 6, r + 2).fill({ color: 0x000000, alpha: 0.18 });
+    for (const ear of [earL, earR]) {
+      const side = Math.sign(ear.x - head.x);
+      g.circle(ear.x, ear.y, ear.r).fill(TIGER.fur).circle(ear.x, ear.y, ear.r).stroke({ width: 3.5, color: INK });
+      g.circle(ear.x - side * 3, ear.y + 4, ear.r * 0.55).fill(TIGER.blush);
     }
-    this.status.anchor.set(0.5);
-    this.status.position.set(0, -h + 20);
-    this.spinLamps.position.set(0, h - 12);
-    c.addChild(reels, ...this.reelTexts, this.status, this.spinLamps);
+    g.circle(head.x, head.y, r).fill(
+      new FillGradient({
+        type: 'radial',
+        center: { x: 0.42, y: 0.34 },
+        innerRadius: 0,
+        outerCenter: { x: 0.5, y: 0.5 },
+        outerRadius: 0.5,
+        colorStops: [
+          { offset: 0, color: 0xfdb656 },
+          { offset: 0.7, color: TIGER.fur },
+          { offset: 1, color: TIGER.furShade },
+        ],
+        textureSpace: 'local',
+      }),
+    );
+
+    // The slot in the top of his head, between the ears.
+    g.ellipse(head.x, head.y - r + 7, 15, 7).fill(0x1d1510).ellipse(head.x, head.y - r + 7, 15, 7).stroke({ width: 2.5, color: COLORS.mustard });
+
+    // Stripes: three on the forehead and two on each cheek, each a tapered wedge.
+    const wedge = (x1: number, y1: number, x2: number, y2: number, w: number): void => {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const len = Math.hypot(dx, dy);
+      const nx = (-dy / len) * w;
+      const ny = (dx / len) * w;
+      g.moveTo(head.x + x1 + nx, head.y + y1 + ny)
+        .quadraticCurveTo(head.x + (x1 + x2) / 2 + nx * 0.8, head.y + (y1 + y2) / 2 + ny * 0.8, head.x + x2, head.y + y2)
+        .quadraticCurveTo(head.x + (x1 + x2) / 2 - nx * 0.8, head.y + (y1 + y2) / 2 - ny * 0.8, head.x + x1 - nx, head.y + y1 - ny)
+        .closePath()
+        .fill(INK);
+    };
+    wedge(0, -r + 16, 0, -r + 40, 5.5);
+    wedge(-19, -r + 14, -16, -r + 31, 4.5);
+    wedge(19, -r + 14, 16, -r + 31, 4.5);
+    for (const side of [-1, 1]) {
+      wedge(side * (r - 3), -8, side * (r - 30), -3, 5.5);
+      wedge(side * (r - 9), 16, side * (r - 33), 14, 5);
+    }
+
+    // Cream muzzle.
+    g.circle(head.x - 19, head.y + 30, 25).circle(head.x + 19, head.y + 30, 25).circle(head.x, head.y + 44, 22).fill(TIGER.cream);
+    // Eyes: fixed, glossy domes.
+    for (const side of [-1, 1]) {
+      const ex = head.x + side * 30;
+      const ey = head.y - 14;
+      g.ellipse(ex, ey, 10.5, 12.5).fill(INK);
+      g.circle(ex - 3.5, ey - 5, 4.2).circle(ex + 3.5, ey + 4.5, 2).fill(0xffffff);
+    }
+
+    // Whiskers.
+    for (const side of [-1, 1]) {
+      for (const [dy, tilt] of [
+        [22, -7],
+        [30, 0],
+        [38, 7],
+      ] as const) {
+        g.moveTo(head.x + side * 30, head.y + dy).lineTo(head.x + side * 66, head.y + dy + tilt);
+      }
+    }
+    g.stroke({ width: 1.6, color: INK, alpha: 0.75, cap: 'round' });
+
+    // Nose.
+    g.moveTo(head.x - 9, head.y + 12)
+      .quadraticCurveTo(head.x, head.y + 8, head.x + 9, head.y + 12)
+      .quadraticCurveTo(head.x + 7, head.y + 22, head.x, head.y + 24)
+      .quadraticCurveTo(head.x - 7, head.y + 22, head.x - 9, head.y + 12)
+      .fill(TIGER.nose);
+    g.moveTo(head.x - 9, head.y + 12)
+      .quadraticCurveTo(head.x, head.y + 8, head.x + 9, head.y + 12)
+      .quadraticCurveTo(head.x + 7, head.y + 22, head.x, head.y + 24)
+      .quadraticCurveTo(head.x - 7, head.y + 22, head.x - 9, head.y + 12)
+      .stroke({ width: 2, color: INK, join: 'round' });
+
+    g.circle(head.x, head.y, r).stroke({ width: 3.5, color: INK });
+    c.addChild(g, this.tigerFace);
     return c;
+  }
+
+  /** The moving parts of the face: the hinged jaw, and the lamps behind his cheeks. */
+  private drawExpression(cheering: boolean): void {
+    const t = this.board.tiger;
+    const g = this.tigerFace.clear();
+    for (const side of [-1, 1]) {
+      const cx = t.x + side * 50;
+      const cy = t.y + 16;
+      if (cheering) {
+        g.circle(cx, cy, 16).fill({ color: 0xffd45e, alpha: 0.35 });
+        g.circle(cx, cy, 10).fill(0xffc94a).circle(cx - 3, cy - 3, 3).fill({ color: 0xffffff, alpha: 0.8 });
+      } else {
+        g.circle(cx, cy, 10).fill({ color: TIGER.blush, alpha: 0.6 });
+      }
+    }
+    const my = t.y + 24;
+    if (cheering) {
+      // The jaw drops open.
+      g.moveTo(t.x - 17, my + 4).quadraticCurveTo(t.x, my + 1, t.x + 17, my + 4).quadraticCurveTo(t.x + 13, my + 27, t.x, my + 28).quadraticCurveTo(t.x - 13, my + 27, t.x - 17, my + 4).fill(TIGER.mouth);
+      g.ellipse(t.x, my + 21, 8, 5.5).fill(TIGER.tongue);
+      g.moveTo(t.x - 17, my + 4).quadraticCurveTo(t.x, my + 1, t.x + 17, my + 4).quadraticCurveTo(t.x + 13, my + 27, t.x, my + 28).quadraticCurveTo(t.x - 13, my + 27, t.x - 17, my + 4).stroke({ width: 2.2, color: INK, join: 'round' });
+    } else {
+      // Jaw shut: a gentle cat smile.
+      g.moveTo(t.x, my).lineTo(t.x, my + 5);
+      g.moveTo(t.x - 15, my + 5).quadraticCurveTo(t.x - 8, my + 14, t.x, my + 5).quadraticCurveTo(t.x + 8, my + 14, t.x + 15, my + 5);
+      g.stroke({ width: 2.4, color: INK, cap: 'round', join: 'round' });
+    }
+  }
+
+  /** Traditional round windmills: a wheel with raised vanes that balls catch and turn. */
+  private buildWindmills(): Container {
+    const layer = new Container();
+    const r = this.board.windmillRadius;
+    for (const w of this.board.windmills) {
+      const g = new Graphics();
+      g.circle(0, 0, r + 1).fill(COLORS.cream).circle(0, 0, r + 1).stroke({ width: 2.2, color: INK });
+      g.circle(0, 0, r - 4).stroke({ width: 3, color: COLORS.turquoise });
+      for (let k = 0; k < WINDMILL_BLADES; k++) {
+        const a = (k / WINDMILL_BLADES) * Math.PI * 2;
+        const mid = a + Math.PI / WINDMILL_BLADES;
+        g.circle(Math.cos(mid) * (r - 9), Math.sin(mid) * (r - 9), 2.6).fill(COLORS.mustard);
+        const c = Math.cos(a);
+        const sn = Math.sin(a);
+        const bar = [4 * c + 3 * sn, 4 * sn - 3 * c, r * c + 2.5 * sn, r * sn - 2.5 * c, r * c - 2.5 * sn, r * sn + 2.5 * c, 4 * c - 3 * sn, 4 * sn + 3 * c];
+        g.poly(bar).fill(COLORS.coral);
+        g.poly(bar).stroke({ width: 1.4, color: INK, join: 'round' });
+      }
+      g.circle(0, 0, 6.5).fill(chrome()).circle(0, 0, 6.5).stroke({ width: 1.5, color: INK }).circle(0, 0, 2).fill(INK);
+      g.position.set(w.x, w.y);
+      const shadow = new Graphics().circle(w.x + 2, w.y + 4, r + 1).fill({ color: 0x000000, alpha: 0.14 });
+      layer.addChild(shadow, g);
+      this.mills.push(g);
+    }
+    return layer;
   }
 
   private drawCatchers(machine: Machine): void {
     const g = this.catchers.clear();
-    const trace = (pocket: Pocket, open: boolean): void => {
-      pocketOutline(pocket, open).forEach((p, i) => (i === 0 ? g.moveTo(pocket.x + p.x, pocket.y + p.y) : g.lineTo(pocket.x + p.x, pocket.y + p.y)));
-    };
     for (const pocket of this.board.pockets) {
       const { x, y, halfWidth: hw } = pocket;
-      const open = machine.isOpen(pocket.id);
-      if (pocket.kind === 'attacker') {
-        const active = machine.jackpotRound?.open ?? false;
-        g.roundRect(x - hw - 8, y - 16, (hw + 8) * 2, 32, 10).fill(chrome());
-        g.roundRect(x - hw, y - 10, hw * 2, 20, 6).fill(active ? 0x0b0907 : COLORS.neon);
-        if (active) g.roundRect(x - hw, y - 10, hw * 2, 20, 6).stroke({ width: 3, color: COLORS.mustard });
-        else g.roundRect(x - hw + 6, y - 6, hw * 2 - 12, 5, 2).fill({ color: 0xffffff, alpha: 0.35 });
+      if (pocket.kind === 'crown') continue;
+      if (pocket.kind === 'tulip') {
+        this.drawTulip(g, pocket, machine.isOpen(pocket.id));
         continue;
       }
-      // Dark inside, then the walls.
-      const pts = pocketOutline(pocket, open).flatMap((p) => [x + p.x, y + p.y]);
-      g.poly(pts).fill(0x1d1510);
-      if (pocket.kind === 'tulip') {
-        trace(pocket, open);
-        g.stroke({ width: 9, color: 0xa8402f, cap: 'round', join: 'round' });
-        trace(pocket, open);
-        g.stroke({ width: 6, color: open ? COLORS.neon : COLORS.coral, cap: 'round', join: 'round' });
-        g.circle(x, y + 22, 6).fill(COLORS.mustard).circle(x, y + 22, 6).stroke({ width: 1.5, color: COLORS.brassDark });
+      // A rounded cup: a mitt for a paw, a little gold pot under the chin, enamel for the sides.
+      const body = pocket.kind === 'paw' ? TIGER.fur : pocket.kind === 'chin' ? COLORS.mustard : COLORS.teal;
+      const round = pocket.kind === 'paw' ? 13 : 9;
+      g.roundRect(x - hw - 2, y - 11 + 3, (hw + 2) * 2, 30, round).fill({ color: 0x000000, alpha: 0.16 });
+      g.roundRect(x - hw - 3, y - 12, (hw + 3) * 2, 31, round).fill(body);
+      g.roundRect(x - hw - 3, y - 12, (hw + 3) * 2, 31, round).stroke({ width: 3, color: INK, join: 'round' });
+      g.ellipse(x, y - 6, hw - 2, 5).fill(0x1d1510).ellipse(x, y - 6, hw - 2, 5).stroke({ width: 2, color: INK });
+      if (pocket.kind === 'paw') {
+        // Toe beans and a pad.
+        g.circle(x - 9, y + 5, 3.4).circle(x, y + 3.5, 3.6).circle(x + 9, y + 5, 3.4).ellipse(x, y + 12, 7, 4).fill(TIGER.cream);
+      } else if (pocket.kind === 'chin') {
+        // A paw print, so it reads as the tiger's own.
+        g.circle(x - 6, y + 5, 2.4).circle(x, y + 3.5, 2.6).circle(x + 6, y + 5, 2.4).ellipse(x, y + 11, 5, 3.2).fill({ color: INK, alpha: 0.7 });
       } else {
-        trace(pocket, open);
-        g.stroke({ width: 8, color: 0x4a5258, cap: 'round', join: 'round' });
-        trace(pocket, open);
-        g.stroke({ width: 5, color: pocket.kind === 'start' ? COLORS.mustard : 0xdfe4e8, cap: 'round', join: 'round' });
+        g.roundRect(x - hw, y + 4, hw * 2, 6, 3).fill(COLORS.cream);
       }
     }
   }
 
-  /** A little "+5" that floats up from a catcher when it pays. */
-  popup(pocket: Pocket, balls: number): void {
-    const text = new Text({
-      text: `+${balls}`,
-      style: { fontFamily: FONT_STACK, fontSize: 26, fontWeight: '800', fill: COLORS.neon, stroke: { color: 0xfff6e0, width: 4, join: 'round' } },
-    });
-    text.anchor.set(0.5);
-    text.position.set(pocket.x, pocket.y - 16);
-    this.popupLayer.addChild(text);
-    this.popups.push({ text, age: 0 });
+  /**
+   * A tulip as the mechanism it is: a housing set in the board, and two rigid petals hinged
+   * on pivots at its floor that swing outwards to open.
+   */
+  private drawTulip(g: Graphics, pocket: Pocket, open: boolean): void {
+    const { x, y } = pocket;
+    const [tipL, baseL, baseR, tipR] = pocketOutline(pocket, open) as [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }, { x: number; y: number }];
+    const by = y + baseL.y;
+
+    // Housing: the throat the ball drops into, and the body below it.
+    g.roundRect(x - 17, by - 6 + 3, 34, 26, 8).fill({ color: 0x000000, alpha: 0.16 });
+    g.roundRect(x - 17, by - 6, 34, 25, 8).fill(TULIP.housing);
+    g.roundRect(x - 17, by - 6, 34, 25, 8).stroke({ width: 2.6, color: INK, join: 'round' });
+    g.roundRect(x - 11, by + 7, 22, 5, 2.5).fill(COLORS.turquoise);
+    g.poly([x + tipL.x, y + tipL.y, x + baseL.x, by, x + baseR.x, by, x + tipR.x, y + tipR.y]).fill(TULIP.inside);
+
+    // Petals: the inner edge is the wall the ball meets; the body of the flap lies outside it.
+    for (const [tip, base, side] of [
+      [tipL, baseL, -1],
+      [tipR, baseR, 1],
+    ] as const) {
+      const px = x + base.x;
+      const py = by;
+      const dx = tip.x - base.x;
+      const dy = tip.y - base.y;
+      const len = Math.hypot(dx, dy);
+      const ux = dx / len;
+      const uy = dy / len;
+      // The normal of the flap that points away from the middle of the tulip.
+      const flip = uy * side > 0 ? 1 : -1;
+      const nx = uy * flip;
+      const ny = -ux * flip;
+      const at = (along: number, out: number): [number, number] => [px + ux * along + nx * out, py + uy * along + ny * out];
+      const shape = (): void => {
+        const [ax, ay] = at(-3, 0);
+        const [bx, bY] = at(len + 3, 0);
+        const [c1x, c1y] = at(len * 0.75, 12);
+        const [c2x, c2y] = at(len * 0.1, 11);
+        g.moveTo(ax, ay).lineTo(bx, bY).quadraticCurveTo(c1x, c1y, ...at(len * 0.4, 9)).quadraticCurveTo(c2x, c2y, ax, ay).closePath();
+      };
+      shape();
+      g.fill(TULIP.petal);
+      shape();
+      g.stroke({ width: 2.2, color: TULIP.line, join: 'round' });
+      // A moulded rib along the flap, and the pivot it swings on.
+      g.moveTo(...at(len * 0.2, 4)).lineTo(...at(len * 0.85, 3.5)).stroke({ width: 1.8, color: TULIP.rib, cap: 'round' });
+      g.circle(px, py, 3.4).fill(chrome()).circle(px, py, 3.4).stroke({ width: 1.4, color: INK });
+    }
   }
 
-  /** Bring the display, catchers and pop-ups up to date with the machine. */
-  update(dt: number, machine: Machine): void {
-    this.clock += dt;
-    const blink = Math.floor(this.clock * 6) % 2 === 0;
-    const jackpot = machine.jackpotRound;
+  /** Bring the tiger, catchers, windmills and adjustable pins up to date. */
+  update(machine: Machine, windmills: readonly { rotation: number }[], gatePins: readonly { x: number; y: number }[]): void {
+    const gateKey = gatePins.map((p) => p.x.toFixed(1)).join(',');
+    if (gateKey !== this.gateKey) {
+      this.gateKey = gateKey;
+      this.drawPins(this.gatePins.clear(), gatePins);
+    }
 
-    const key = this.board.pockets.map((p) => (machine.isOpen(p.id) ? 1 : 0)).join('') + (jackpot?.open ? 'A' : '');
+    const key = this.board.pockets.map((p) => (machine.isOpen(p.id) ? 1 : 0)).join('');
     if (key !== this.catcherKey) {
       this.catcherKey = key;
       this.drawCatchers(machine);
     }
 
-    const stopped = machine.reelsStopped;
-    this.reelTexts.forEach((t, i) => {
-      const symbol = i < stopped ? machine.reels[i]! : (Math.floor(this.clock * 16 + i * 3) % 7) + 1;
-      const text = String(symbol);
-      if (t.text !== text) t.text = text;
-      t.alpha = i < stopped ? 1 : 0.7;
-    });
-
-    let status = '';
-    if (jackpot) status = jackpot.open ? `JACKPOT  ${jackpot.round} / ${jackpot.rounds}` : 'JACKPOT';
-    else if (machine.inReach) status = blink ? 'REACH !' : '';
-    else if (machine.bonusFlash > 0) status = blink ? 'BONUS' : '';
-    if (this.status.text !== status) this.status.text = status;
-
-    const d = this.board.display;
-    this.screenGlow.clear();
-    if ((jackpot || machine.inReach) && blink) {
-      this.screenGlow.roundRect(-d.halfWidth + 5, -d.halfHeight + 5, d.halfWidth * 2 - 10, d.halfHeight * 2 - 10, 8).stroke({ width: 4, color: jackpot ? COLORS.mustard : COLORS.neon });
+    const face = machine.cheer > 0 ? 'cheer' : 'rest';
+    if (face !== this.faceKey) {
+      this.faceKey = face;
+      this.drawExpression(face === 'cheer');
     }
 
-    const lampKey = String(machine.heldSpins);
-    if (lampKey !== this.lampKey) {
-      this.lampKey = lampKey;
-      this.spinLamps.clear();
-      for (let i = 0; i < 4; i++) {
-        this.spinLamps.circle((i - 1.5) * 18, 0, 5).fill(i < machine.heldSpins ? COLORS.mustard : 0x123f42);
-      }
-    }
-
-    for (let i = this.popups.length - 1; i >= 0; i--) {
-      const p = this.popups[i]!;
-      p.age += dt;
-      p.text.y -= dt * 46;
-      p.text.alpha = Math.max(0, 1 - p.age / 0.9);
-      if (p.age > 0.9) {
-        p.text.destroy();
-        this.popups.splice(i, 1);
-      }
-    }
+    this.mills.forEach((g, i) => (g.rotation = windmills[i]?.rotation ?? 0));
   }
 
   private buildFace(): Graphics {
@@ -277,15 +399,18 @@ export class BoardView extends Container {
   }
 
   private buildPins(): Graphics {
-    const g = new Graphics();
+    return this.drawPins(new Graphics(), this.board.pins);
+  }
+
+  private drawPins(g: Graphics, pins: readonly { x: number; y: number }[]): Graphics {
     const r = this.board.pinRadius;
-    for (const p of this.board.pins) g.circle(p.x + 2.5, p.y + 4, r + 0.5);
+    for (const p of pins) g.circle(p.x + 2.5, p.y + 4, r + 0.5);
     g.fill({ color: 0x3a2a10, alpha: 0.28 });
-    for (const p of this.board.pins) g.circle(p.x, p.y, r + 0.8);
+    for (const p of pins) g.circle(p.x, p.y, r + 0.8);
     g.fill(COLORS.brassDark);
-    for (const p of this.board.pins) g.circle(p.x, p.y, r);
+    for (const p of pins) g.circle(p.x, p.y, r);
     g.fill(COLORS.brass);
-    for (const p of this.board.pins) g.circle(p.x - r * 0.3, p.y - r * 0.35, r * 0.42);
+    for (const p of pins) g.circle(p.x - r * 0.3, p.y - r * 0.35, r * 0.42);
     g.fill({ color: 0xfff6d8, alpha: 0.9 });
     return g;
   }

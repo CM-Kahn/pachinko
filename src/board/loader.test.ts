@@ -12,8 +12,11 @@ const base: BoardSpec = {
   launch: { angle: 128, r: 387, minSpeed: 1700, maxSpeed: 2100 },
   bumpers: [{ angle: 322, r: 388, radius: 15 }],
   drain: { x: 0, y: 386, halfWidth: 34, halfHeight: 20 },
-  display: { x: 0, y: -71, halfWidth: 96, halfHeight: 63 },
+  tiger: { x: 0, y: -62, radius: 78, earDx: 46, earDy: 78, earRadius: 24 },
+  windmillRadius: 22,
+  windmills: [],
   pockets: [],
+  gates: [],
   pins: [],
 };
 
@@ -61,6 +64,13 @@ describe('loadBoard', () => {
     }
   });
 
+  it('rejects a luck gate that could close tighter than a ball', () => {
+    const gate = { x: 0, y: 0, min: 30, normal: 40, max: 50 };
+    expect(() => loadBoard({ ...base, gates: [gate] })).toThrow(/gate/);
+    expect(() => loadBoard({ ...base, gates: [{ ...gate, min: 34 }] })).not.toThrow();
+    expect(() => loadBoard({ ...base, gates: [{ ...gate, min: 44 }] })).toThrow(/gate/);
+  });
+
   it('rejects pins outside the playfield', () => {
     expect(() => loadBoard({ ...base, pins: [{ type: 'pin', x: 399, y: 0 }] })).toThrow(/outside/);
   });
@@ -86,7 +96,7 @@ describe('loadBoard', () => {
 });
 
 describe('the Classic board', () => {
-  const board = loadBoard(classic as BoardSpec);
+  const board = loadBoard(classic as unknown as BoardSpec);
 
   it('has a healthy pin field', () => {
     expect(board.pins.length).toBeGreaterThan(150);

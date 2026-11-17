@@ -30,8 +30,8 @@ interface DebugInfo {
   ballsOwed: number;
   /** Which tulips are open, by id. */
   tulipsOpen: Record<string, boolean>;
-  reels: number[];
-  jackpotRound: number | null;
+  /** True while the tiger is beaming after catching a ball. */
+  tigerHappy: boolean;
   lights: number;
   refillShown: boolean;
   fps: number;
@@ -88,7 +88,7 @@ async function start(): Promise<void> {
   const startBalls = Number(params.get('balls'));
   if (Number.isInteger(startBalls) && startBalls > 0 && startBalls <= STARTING_BALLS) state.ballsRemaining = startBalls;
   const logic = new LauncherLogic();
-  const board = loadBoard(classic as BoardSpec);
+  const board = loadBoard(classic as unknown as BoardSpec);
   let sim: Simulation | null = null;
 
   const settings = loadSettings();
@@ -99,23 +99,14 @@ async function start(): Promise<void> {
       sim?.setOpen(id, open);
       sound.snap(open);
     },
-    onAttacker: (open) => {
-      sim?.setOpen('attacker', open);
-      sound.snap(open);
-    },
-    onWin: (pocket, balls) => {
-      boardView.popup(pocket, balls);
-      sound.win();
-    },
-    onReelStop: () => sound.reelStop(),
-    onReach: () => sound.reach(),
-    onJackpot: () => sound.jackpot(),
-    onRound: (round) => {
-      if (round > 1) sound.fanfare();
+    onWin: () => sound.win(),
+    onTiger: (_pocket, tulips) => {
+      const all = tulips >= board.pockets.filter((p) => p.kind === 'tulip').length;
+      if (all) sound.cheer();
+      else sound.fanfare();
     },
     onBonus: () => sound.fanfare(),
-    // For testing: ?rig=jackpot makes every spin three of a kind.
-  }, params.get('rig') === 'jackpot' ? () => 0 : Math.random);
+  });
   machine.payout = settings.payout;
   const cabinet = new Cabinet(
     logic,
@@ -221,7 +212,7 @@ async function start(): Promise<void> {
 
     cabinet.launcher.update(dt);
     boardView.sync(world.balls);
-    boardView.update(dt, machine);
+    boardView.update(machine, world.windmills, world.gatePinPositions());
     // The bonus strip blinks all its bulbs while it celebrates.
     cabinet.showLights(machine.bonusFlash > 0 ? (Math.floor(machine.bonusFlash * 6) % 2 === 0 ? 9 : 0) : machine.lights);
     cabinet.show(state);
@@ -257,8 +248,7 @@ async function start(): Promise<void> {
       ballsAwarded: state.ballsAwarded,
       ballsOwed: machine.owedBalls,
       tulipsOpen: Object.fromEntries(board.pockets.filter((p) => p.kind === 'tulip').map((p) => [p.id, machine.isOpen(p.id)])),
-      reels: [...machine.reels],
-      jackpotRound: machine.jackpotRound?.round ?? null,
+      tigerHappy: machine.cheer > 0,
       lights: machine.lights,
       refillShown: cabinet.refill.visible,
       fps,
