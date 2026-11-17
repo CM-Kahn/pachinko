@@ -1,11 +1,11 @@
-import type { Pocket, Vec } from './types';
+import type { Pocket, TigerSpec, Vec } from './types';
 
 /**
  * The shapes of the catchers, shared by the physics (as walls) and the drawing.
  * All points are relative to the centre of the catcher's mouth, y down.
  */
 
-export const TULIP_OPEN_HALF_WIDTH = 30;
+export const TULIP_OPEN_HALF_WIDTH = 26;
 export const TULIP_CLOSED_HALF_WIDTH = 14;
 const TULIP_BASE = 10;
 const TULIP_TOP = -8;
@@ -32,21 +32,33 @@ export function cupOutline(halfWidth: number): Vec[] {
   ];
 }
 
-/** Walls of a pocket in its current state; the attacker has none (it is a trapdoor). */
+/** Walls of a pocket in its current state; the crown has none (the tiger's ears are its walls). */
 export function pocketOutline(pocket: Pocket, open: boolean): Vec[] {
   if (pocket.kind === 'tulip') return tulipOutline(open);
-  if (pocket.kind === 'attacker') return [];
+  if (pocket.kind === 'crown') return [];
   return cupOutline(pocket.halfWidth);
 }
 
 /** True when a ball centred at (dx, dy) from the mouth has been caught. */
-export function isCaught(pocket: Pocket, open: boolean, dx: number, dy: number): boolean {
+export function isCaught(pocket: Pocket, dx: number, dy: number): boolean {
   switch (pocket.kind) {
     case 'tulip':
       return Math.abs(dx) < 12 && dy > -2 && dy < 15;
-    case 'attacker':
-      return open && Math.abs(dx) < pocket.halfWidth && Math.abs(dy) < 12;
+    case 'crown':
+      return Math.abs(dx) < 12 && dy > -16 && dy < 10;
     default:
       return Math.abs(dx) < pocket.halfWidth - 9 && dy > -4 && dy < 13;
   }
 }
+
+/** The solid parts of the tiger, as circles: the head, then the two ears. */
+export function tigerCircles(t: TigerSpec): { x: number; y: number; r: number }[] {
+  return [
+    { x: t.x, y: t.y, r: t.radius },
+    { x: t.x - t.earDx, y: t.y - t.earDy, r: t.earRadius },
+    { x: t.x + t.earDx, y: t.y - t.earDy, r: t.earRadius },
+  ];
+}
+
+/** How many blades a windmill has. */
+export const WINDMILL_BLADES = 4;

@@ -7,19 +7,29 @@
   "launch": { "angle": 128, "r": 387, "minSpeed": 1725, "maxSpeed": 2100 },
   "bumpers": [{ "angle": 322, "r": 388, "radius": 15 }],
   "drain": { "x": 0, "y": 386, "halfWidth": 34, "halfHeight": 20 },
-  "display": { "x": 0, "y": -71, "halfWidth": 106, "halfHeight": 63 },
+  "tiger": { "x": 0, "y": -62, "radius": 78, "earDx": 46, "earDy": 78, "earRadius": 24 },
+  "windmillRadius": 22,
+  "windmills": [
+    { "x": -128, "y": -262 },
+    { "x": 128, "y": -262 },
+    { "x": -170, "y": 262 },
+    { "x": 170, "y": 262 }
+  ],
   "pockets": [
-    { "id": "start", "kind": "start", "x": 0, "y": 124, "halfWidth": 24 },
-    { "id": "tulip-upper-left", "kind": "tulip", "x": -236, "y": -40, "opens": "tulip-lower-left" },
-    { "id": "tulip-upper-right", "kind": "tulip", "x": 236, "y": -40, "opens": "tulip-lower-right" },
+    { "id": "crown", "kind": "crown", "x": 0, "y": -152, "opens": "all" },
+    { "id": "chin", "kind": "chin", "x": 0, "y": 112, "halfWidth": 17, "opens": "all" },
+    { "id": "paw-left", "kind": "paw", "x": -41, "y": 31, "halfWidth": 19, "opens": ["tulip-upper-left", "tulip-lower-left"] },
+    { "id": "paw-right", "kind": "paw", "x": 41, "y": 31, "halfWidth": 19, "opens": ["tulip-upper-right", "tulip-lower-right"] },
+    { "id": "tulip-upper-left", "kind": "tulip", "x": -236, "y": -40 },
+    { "id": "tulip-upper-right", "kind": "tulip", "x": 236, "y": -40 },
     { "id": "tulip-lower-left", "kind": "tulip", "x": -72, "y": 196 },
     { "id": "tulip-lower-right", "kind": "tulip", "x": 72, "y": 196 },
     { "id": "side-left", "kind": "side", "x": -262, "y": 150, "halfWidth": 19 },
-    { "id": "side-right", "kind": "side", "x": 262, "y": 150, "halfWidth": 19 },
-    { "id": "attacker", "kind": "attacker", "x": 0, "y": 318, "halfWidth": 84 }
+    { "id": "side-right", "kind": "side", "x": 262, "y": 150, "halfWidth": 19 }
   ],
   "pins": [
-    { "type": "line", "x1": 0, "y1": -215, "x2": 110, "y2": -150, "n": 12, "mirror": true },
+    { "type": "line", "x1": 18, "y1": -204, "x2": 110, "y2": -150, "n": 10, "mirror": true },
+    { "type": "line", "x1": 0, "y1": -250, "x2": 28, "y2": -238, "n": 3, "mirror": true },
 
     { "type": "line", "x1": 62, "y1": -345, "x2": 84, "y2": -292, "n": 6, "mirror": true },
     { "type": "line", "x1": 150, "y1": -322, "x2": 190, "y2": -274, "n": 6, "mirror": true },
@@ -27,13 +37,13 @@
     { "type": "arc", "cx": 222, "cy": -30, "r": 62, "from": 185, "to": 245, "n": 7, "mirror": true },
     { "type": "arc", "cx": 300, "cy": 70, "r": 62, "from": 185, "to": 245, "n": 7, "mirror": true },
 
-    { "type": "line", "x1": 30, "y1": 62, "x2": 30, "y2": 117, "n": 6, "mirror": true },
     { "type": "line", "x1": 140, "y1": 160, "x2": 140, "y2": 215, "n": 6, "mirror": true },
     { "type": "line", "x1": 200, "y1": 160, "x2": 200, "y2": 215, "n": 6, "mirror": true },
-    { "type": "line", "x1": 122, "y1": 268, "x2": 92, "y2": 302, "n": 5, "mirror": true },
-    { "type": "line", "x1": 131, "y1": 24, "x2": 42, "y2": 58, "n": 6, "mirror": true },
+    { "type": "line", "x1": 88, "y1": 262, "x2": 60, "y2": 300, "n": 5, "mirror": true },
     { "type": "pin", "x": 236, "y": -84, "mirror": true },
     { "type": "pin", "x": 72, "y": 152, "mirror": true },
+    { "type": "pin", "x": 0, "y": 72 },
+    { "type": "pin", "x": 30, "y": 96, "mirror": true },
     { "type": "pin", "x": 281, "y": 112, "mirror": true },
     { "type": "pin", "x": 243, "y": 112, "mirror": true },
 
@@ -47,8 +57,7 @@
       "clearance": 37,
       "exclude": [
         { "x": -112, "y": -190, "w": 224, "h": 232 },
-        { "x": -31, "y": 40, "w": 62, "h": 100 },
-        { "x": -96, "y": 250, "w": 192, "h": 120 }
+        { "x": -62, "y": 240, "w": 124, "h": 120 }
       ]
     }
   ]

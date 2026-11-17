@@ -162,7 +162,7 @@ test('settings: sound switch and luck slider work and are remembered', async ({ 
   expect(problems).toEqual([]);
 });
 
-test('a catch pays, flips its tulip, opens the partner and is remembered', async ({ page }, testInfo) => {
+test('a catch pays, flips its tulip and is remembered', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === 'tablet', 'covered on phone and desktop');
   const problems = watchForProblems(page);
   await ready(page);
@@ -171,15 +171,13 @@ test('a catch pays, flips its tulip, opens the partner and is remembered', async
   let i = await info(page);
   expect(i.ballsRemaining).toBe(255);
   expect(i.tulipsOpen['tulip-upper-left']).toBe(true);
-  expect(i.tulipsOpen['tulip-lower-left']).toBe(true);
-  expect(i.tulipsOpen['tulip-upper-right']).toBe(false);
+  expect(i.tulipsOpen['tulip-lower-left']).toBe(false);
   expect(i.lights).toBe(1);
 
   await page.evaluate(() => window.__pachinkoCatch!('tulip-upper-left'));
   await expect.poll(async () => (await info(page)).ballsAwarded).toBe(10);
   i = await info(page);
   expect(i.tulipsOpen['tulip-upper-left']).toBe(false);
-  await page.screenshot({ path: testInfo.outputPath('tulips.png') });
 
   // Balls Awarded carries over to the next visit; the tray starts fresh.
   await page.reload();
@@ -190,20 +188,29 @@ test('a catch pays, flips its tulip, opens the partner and is remembered', async
   expect(problems).toEqual([]);
 });
 
-test('the start pocket spins the reels; three of a kind opens the attacker', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'phone', 'one screen size is enough');
+test('the tiger opens two tulips for a paw and all four for his head or chin', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'tablet', 'covered on phone and desktop');
   const problems = watchForProblems(page);
-  await ready(page, './?rig=jackpot');
-  await page.evaluate(() => window.__pachinkoCatch!('start'));
-  await expect.poll(async () => (await info(page)).jackpotRound, { timeout: 20_000 }).toBe(1);
-  const i = await info(page);
-  expect(new Set(i.reels).size).toBe(1);
-  await page.screenshot({ path: testInfo.outputPath('jackpot.png') });
+  await ready(page);
+  expect((await info(page)).tigerHappy).toBe(false);
 
-  // A ball in the open attacker pays.
-  const before = i.ballsAwarded;
-  await page.evaluate(() => window.__pachinkoCatch!('attacker'));
-  await expect.poll(async () => (await info(page)).ballsAwarded).toBe(before + 5);
+  await page.evaluate(() => window.__pachinkoCatch!('paw-right'));
+  let i = await info(page);
+  expect(i.tigerHappy).toBe(true);
+  expect(i.tulipsOpen).toEqual({ 'tulip-upper-left': false, 'tulip-upper-right': true, 'tulip-lower-left': false, 'tulip-lower-right': true });
+
+  await page.evaluate(() => window.__pachinkoCatch!('crown'));
+  i = await info(page);
+  expect(Object.values(i.tulipsOpen)).toEqual([true, true, true, true]);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: testInfo.outputPath('all-open.png') });
+
+  // An open tulip closes again when it catches a ball; the chin pocket reopens it.
+  await page.evaluate(() => window.__pachinkoCatch!('tulip-lower-left'));
+  expect((await info(page)).tulipsOpen['tulip-lower-left']).toBe(false);
+  await page.evaluate(() => window.__pachinkoCatch!('chin'));
+  expect((await info(page)).tulipsOpen['tulip-lower-left']).toBe(true);
+  await expect.poll(async () => (await info(page)).ballsAwarded).toBe(20);
   expect(problems).toEqual([]);
 });
 

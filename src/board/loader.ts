@@ -70,23 +70,27 @@ function arcPoints(r: number, from: number, to: number, stepDeg: number): Vec[] 
 
 /** Expand a board file into plain coordinates. Throws if the layout is unplayable. */
 export function loadBoard(spec: BoardSpec): Board {
+  const tulipIds = spec.pockets.filter((p) => p.kind === 'tulip').map((p) => p.id);
   const pockets: Pocket[] = spec.pockets.map((p) => ({
     id: p.id,
     kind: p.kind,
     x: p.x,
     y: p.y,
-    halfWidth: p.kind === 'tulip' ? TULIP_OPEN_HALF_WIDTH : (p.halfWidth ?? 24),
-    opens: p.opens ?? null,
+    halfWidth: p.kind === 'tulip' ? TULIP_OPEN_HALF_WIDTH : p.kind === 'crown' ? 12 : (p.halfWidth ?? 24),
+    opens: p.opens === 'all' ? tulipIds : (p.opens ?? []),
   }));
   const ids = new Set(pockets.map((p) => p.id));
   if (ids.size !== pockets.length) throw new Error(`Board "${spec.name}": two pockets share an id`);
   for (const p of pockets) {
-    if (p.opens !== null && pockets.find((q) => q.id === p.opens)?.kind !== 'tulip') {
-      throw new Error(`Board "${spec.name}": pocket "${p.id}" opens "${p.opens}", which is not a tulip`);
+    for (const id of p.opens) {
+      if (!tulipIds.includes(id)) throw new Error(`Board "${spec.name}": pocket "${p.id}" opens "${id}", which is not a tulip`);
     }
   }
-  // Field pins keep clear of every catcher so a ball always has room to get in.
-  const keepOut: Zone[] = pockets.map((p) => ({ x: p.x - p.halfWidth - 24, y: p.y - 44, w: (p.halfWidth + 24) * 2, h: 84 }));
+  // Field pins keep clear of every catcher and windmill so a ball always has room.
+  const keepOut: Zone[] = [
+    ...pockets.map((p) => ({ x: p.x - p.halfWidth - 24, y: p.y - 44, w: (p.halfWidth + 24) * 2, h: 84 })),
+    ...spec.windmills.map((w) => ({ cx: w.x, cy: w.y, r: spec.windmillRadius + 30 })),
+  ];
 
   const explicit = dedupe(spec.pins.flatMap((item) => (item.type === 'field' ? [] : placed(item))));
   const fields = spec.pins.flatMap((item) => (item.type === 'field' ? field(item, explicit, keepOut) : []));
@@ -114,7 +118,9 @@ export function loadBoard(spec: BoardSpec): Board {
     bumpers: spec.bumpers.map((b) => ({ ...polar(b.angle, b.r), radius: b.radius })),
     launch: { ...start, dirX: dir.x, dirY: dir.y, minSpeed: spec.launch.minSpeed, maxSpeed: spec.launch.maxSpeed },
     drain: spec.drain,
-    display: spec.display,
+    tiger: spec.tiger,
+    windmillRadius: spec.windmillRadius,
+    windmills: spec.windmills,
     pockets,
   };
 }

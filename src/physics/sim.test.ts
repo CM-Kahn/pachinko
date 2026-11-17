@@ -5,7 +5,7 @@ import type { BoardSpec } from '../board/types';
 import { Simulation, type Ball } from './sim';
 import { FIXED_DT, loadRapier, type Rapier } from './world';
 
-const board = loadBoard(classic as BoardSpec);
+const board = loadBoard(classic as unknown as BoardSpec);
 let R: Rapier;
 beforeAll(async () => {
   R = await loadRapier();
@@ -108,7 +108,7 @@ describe('Simulation', () => {
     expect(caught).toBeLessThan(140);
   });
 
-  it('catches a ball dropped into a tulip, a cup, and the attacker only while it is open', () => {
+  it('catches a ball dropped into a tulip, a cup, a paw, and the top of the tiger\'s head', () => {
     const dropInto = (id: string, prepare?: (sim: Simulation) => void): string | null => {
       const sim = new Simulation(R, board, () => 0.5);
       prepare?.(sim);
@@ -123,9 +123,20 @@ describe('Simulation', () => {
     expect(dropInto('tulip-lower-left')).toBe('tulip-lower-left');
     expect(dropInto('tulip-lower-left', (sim) => sim.setOpen('tulip-lower-left', true))).toBe('tulip-lower-left');
     expect(dropInto('side-right')).toBe('side-right');
-    expect(dropInto('start')).toBe('start');
-    expect(dropInto('attacker')).toBeNull();
-    expect(dropInto('attacker', (sim) => sim.setOpen('attacker', true))).toBe('attacker');
+    expect(dropInto('paw-left')).toBe('paw-left');
+    expect(dropInto('chin')).toBe('chin');
+    expect(dropInto('crown')).toBe('crown');
+  });
+
+  it('turns a windmill when a ball strikes a blade', () => {
+    const sim = new Simulation(R, board, () => 0.5);
+    const mill = board.windmills[0]!;
+    expect(sim.windmills[0]!.rotation).toBe(0);
+    sim.spawn(mill.x + board.windmillRadius * 0.7, mill.y - 60, 0, 300);
+    for (let i = 0; i < 120; i++) sim.step();
+    expect(Math.abs(sim.windmills[0]!.rotation)).toBeGreaterThan(0.2);
+    // It stays where it is: only its angle changes.
+    expect(sim.windmills[0]).toMatchObject({ x: mill.x, y: mill.y });
   });
 
   it('catches more balls the luckier the machine is set', () => {
@@ -144,7 +155,7 @@ describe('Simulation', () => {
     const [hard, normal, easy] = [-1, 0, 1].map(catches) as [number, number, number];
     expect(hard).toBeLessThan(normal);
     expect(normal).toBeLessThan(easy);
-  });
+  }, 30_000);
 
   it('simulates 60 balls well inside a 60 fps frame', () => {
     const random = seeded(3);

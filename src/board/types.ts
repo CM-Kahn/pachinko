@@ -63,12 +63,13 @@ export type PinSpec = PinItem | LineItem | ArcItem | FieldItem;
 
 /**
  * Somewhere a ball can be caught.
- * - `start`: the pocket under the centre display; a catch spins the reels.
  * - `tulip`: a flower catcher whose petals open wide and close again.
- * - `side`: a plain cup with a small steady payout.
- * - `attacker`: the big gate near the bottom that only opens during a jackpot.
+ * - `side`: a plain cup.
+ * - `crown`: the top of the tiger's head, between the ears (the ears are its walls).
+ * - `paw`: one of the tiger's raised paws.
+ * - `chin`: the pocket under the tiger's chin.
  */
-export type PocketKind = 'start' | 'tulip' | 'side' | 'attacker';
+export type PocketKind = 'tulip' | 'side' | 'crown' | 'paw' | 'chin';
 
 export interface PocketSpec {
   id: string;
@@ -76,13 +77,24 @@ export interface PocketSpec {
   /** Centre of the mouth. */
   x: number;
   y: number;
-  /** Half the width of the mouth. Tulips have a fixed size and ignore this. */
+  /** Half the width of the mouth. Tulips and the crown have a fixed size and ignore this. */
   halfWidth?: number;
-  /** Tulips only: a catch here also opens the tulip with this id. */
-  opens?: string;
+  /** A catch here opens these tulips (by id), or every tulip on the board. */
+  opens?: string[] | 'all';
 }
 
-export type Pocket = Required<Omit<PocketSpec, 'opens'>> & { opens: string | null };
+export type Pocket = Required<Omit<PocketSpec, 'opens'>> & { opens: string[] };
+
+/** The tiger's head in the middle of the board: a round head with two round ears. */
+export interface TigerSpec {
+  x: number;
+  y: number;
+  radius: number;
+  /** Ear centres are this far out and up from the centre of the head. */
+  earDx: number;
+  earDy: number;
+  earRadius: number;
+}
 
 export interface BoardSpec {
   name: string;
@@ -98,8 +110,10 @@ export interface BoardSpec {
   bumpers: { angle: number; r: number; radius: number }[];
   /** The out hole at the bottom of the board. */
   drain: { x: number; y: number; halfWidth: number; halfHeight: number };
-  /** The solid centre display that houses the three reels. */
-  display: { x: number; y: number; halfWidth: number; halfHeight: number };
+  tiger: TigerSpec;
+  /** Free-spinning windmills, all the same size. */
+  windmillRadius: number;
+  windmills: Vec[];
   pockets: PocketSpec[];
   pins: PinSpec[];
 }
@@ -119,6 +133,8 @@ export interface Board {
   bumpers: (Vec & { radius: number })[];
   launch: Vec & { dirX: number; dirY: number; minSpeed: number; maxSpeed: number };
   drain: BoardSpec['drain'];
-  display: BoardSpec['display'];
+  tiger: TigerSpec;
+  windmillRadius: number;
+  windmills: Vec[];
   pockets: Pocket[];
 }

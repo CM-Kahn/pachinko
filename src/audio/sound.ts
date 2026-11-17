@@ -185,27 +185,17 @@ export class Sound {
     this.play(this.pins[1], 0.12, 1.5 + Math.random() * 0.2);
   }
 
-  /** A reel clicked to a stop. */
-  reelStop(): void {
-    this.play(this.thunk, 0.35, 2.2);
-  }
-
-  /** Two reels match: something might be coming. */
-  reach(): void {
-    for (let i = 0; i < 4; i++) this.play(this.bell, 0.3, 1 + i * 0.12, i * 0.14);
-  }
-
-  /** Three of a kind. */
-  jackpot(): void {
+  /** The tiger opened every tulip. */
+  cheer(): void {
     [1, 1.26, 1.5, 2, 1.5, 2, 2.52].forEach((rate, i) => this.play(this.bell, 0.5, rate, i * 0.11));
   }
 
-  /** A tulip or the attacker snapped open or shut. */
+  /** A tulip snapped open or shut. */
   snap(open: boolean): void {
     this.play(this.wall, 0.3, open ? 1.6 : 1.1);
   }
 
-  /** The bonus strip filled up, or a jackpot round began. */
+  /** The bonus strip filled up, or a paw opened two tulips. */
   fanfare(): void {
     [1, 1.5, 2].forEach((rate, i) => this.play(this.bell, 0.4, rate, i * 0.09));
   }

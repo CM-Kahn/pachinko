@@ -22,7 +22,7 @@ The things that make a great pachinko game, and that this one must get right:
    However, fun takes precedence over real.
 2. **Exquisite sound.** The single most important "feel" ingredient. Layered ball-on-pin ticks
    (varying pitch/volume by speed), launch thunk, pocket chimes, tulip snaps, payout cascade,
-   jackpot fanfare, and a soft mechanical ambience. Sound must work reliably on iPhone
+   a fanfare when the tiger opens every tulip, and a soft mechanical ambience. Sound must work reliably on iPhone
    (iOS requires audio to be unlocked by a first tap — handle this explicitly).
 3. **A satisfying launcher.** A chrome handle in the lower right that you pull back by touching
    it (phone/tablet) or dragging it with the mouse (desktop), then let go to shoot. **One ball
@@ -40,8 +40,11 @@ The things that make a great pachinko game, and that this one must get right:
 
 Direction: **1970s Showa-era machine**, after the owner's photo of a machine like the one they
 had as a child — honey-coloured wood cabinet, chrome frame, cream playfield printed with faded
-mid-century flowers, turquoise and coral accents, a chrome launch handle, and a vintage
-"attraction" center display. The general arrangement of a traditional board (round rail, launch
+mid-century flowers, turquoise and coral accents, a chrome launch handle, and a mechanical
+centre feature. The machine is **purely mechanical, as machines were before about 1980**: no
+reels, no screen and no jackpot gate (the owner tried reels in Phase 3 and decided they do not
+belong). The centre feature is a **tiger's face: fun and endearing, not fierce**, an original
+drawing. The general arrangement of a traditional board (round rail, launch
 lane up the left, stopper at upper right, tulips, center feature, out hole) is common to all
 machines of the era and is fair to follow. Do not copy any maker's name, logo, or artwork, and
 avoid any surf/beach/starfish motif (that belongs to the inspiring app).
@@ -50,15 +53,15 @@ avoid any surf/beach/starfish motif (that belongs to the inspiring app).
 
 - **Playfield:** circular guide rail; ball is launched up the left rail and enters at the top.
   Dense pin fields arranged in curved rows and "gates" that steer balls toward features.
-- **Start pocket (center, below the display):** a ball landing here spins the **center display
-  reels** (three digital reels in the retro style).
-- **Tulips:** flower-shaped catchers that pay a few balls; some open wider after a catch,
-  then close. **At least four tulips**; some may be linked (a catch in one opens another).
-- **Side pockets:** small, steady payouts by default.
-- **Reach & jackpot:** when two reels match, a "reach" animation builds tension; three of a kind
-  = **jackpot mode**: the **attacker** (large gate near the bottom) opens for several rounds and
-  pays big.
-- **Bonus lights:** the strip across the top lights segments as features are hit; completing it
+- **The tiger (centre):** a round, friendly tiger face with four ways in. A ball in the top of
+  his head (between the ears) or in the pocket under his chin **opens all the tulips**; a ball
+  in either of his raised paws **opens the two tulips on that side**. He beams for a moment
+  whenever a ball finds him.
+- **Tulips:** flower-shaped catchers. A catch flips a tulip open or shut; open tulips are much
+  easier to hit. **At least four tulips.**
+- **Windmills:** free-spinning pinwheels that balls set turning and that fling balls sideways.
+- **Side pockets:** plain cups.
+- **Bonus lights:** the strip across the top lights a bulb for each tulip catch; completing it
   gives a bonus.
 - **Out hole:** balls that miss everything drain at the bottom.
 - **Starting balls / refill:** player starts with a stack of balls; if they run out, a free
@@ -112,19 +115,17 @@ and gives feedback before the next phase starts.
   starts to matter in Phase 3, when there are holes to aim for.
 - Until payouts exist, an empty machine refills itself automatically.
 - **Done when:** balls launch one per pull, rattle through pins convincingly, and drain, and
-  the board still runs at 60 fps with 50+ balls on it (as jackpot payouts will need later).
+  the board still runs at 60 fps with 50+ balls on it.
 
 ### Phase 3 — Game features (built)
-- Start pocket under the display, four tulips (upper ones open their lower partner), two side
-  pockets, and the attacker gate, all placed in the board JSON.
-- Three-reel centre display: a start catch spins the reels (up to four spins wait their turn);
-  two alike is a reach; three alike is a jackpot of five rounds (eight for three sevens) in
-  which the attacker opens.
+- The tiger centre feature with its four entrances, four tulips, two side pockets and four
+  windmills, all placed in the board JSON.
 - Bonus light strip: each tulip catch lights a bulb; nine pays a bonus.
 - Winnings trickle into the tray and onto Balls Awarded. Out of balls: a free refill card.
 - The luck slider leans balls towards or away from the pockets. Payout choice in Settings.
-- First-pass sounds for wins, reels, reach and jackpot (the real set is Phase 4).
-- **Done when:** a full game loop works and jackpots happen at a fun rate.
+- First-pass sounds for wins and the tiger (the real set is Phase 4).
+- Original artwork for the tiger, tulips, paws and windmills.
+- **Done when:** a full game loop works and the tiger opens the tulips at a fun rate.
 
 ### Phase 4 — Sound
 - Builds on the rough ticks from Phase 2.
@@ -134,7 +135,7 @@ and gives feedback before the next phase starts.
 - **Done when:** sound works on iPhone, iPad, Mac, and Vision Pro, and it sounds great.
 
 ### Phase 5 — Retro art & polish
-- Final retro art for cabinet, board, display, tulips, lever; lights and particles; jackpot
+- Final retro art for cabinet, board, tiger, tulips, lever; lights and particles; celebration
   animations. No haptics (not available in iPhone browsers; the owner chose to skip them).
 - Settings screen (sound, music, launcher hand).
 - **Done when:** it looks and feels like a real, lovingly made machine.
